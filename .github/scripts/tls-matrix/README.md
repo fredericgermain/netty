@@ -38,7 +38,19 @@ artifact from Maven Central. That is the right default -- it is what users actua
 means the Alpine boringssl cells stay red for as long as a musl defect is unfixed upstream, and
 that the harness cannot show a candidate fix working.
 
-Point it at a locally built tcnative with `-Dtcnative.version`:
+netty already carries a `boringssl-snapshot` profile that points `tcnative.version` at
+`2.0.82.Final-SNAPSHOT` and adds the Central Portal Snapshots repository, so testing against
+upstream's latest needs no credentials and no local build:
+
+```sh
+./mvnw -pl microbench -Pbenchmark-jar,boringssl-snapshot package -DskipTests=true \
+       -Dtcnative.classifier=linux-x86_64
+```
+
+Pin the timestamped version rather than `-SNAPSHOT` if the numbers need to stay comparable: that
+repository prunes old builds, so cache the jars somewhere durable for anything long-lived.
+
+To test a tcnative you built yourself, point at it with `-Dtcnative.version`:
 
 ```sh
 # in the netty-tcnative checkout
@@ -130,9 +142,18 @@ Kept here because they are the evidence for the checks above.
    `Failed to load any of the given libraries`. The gate catches both; a load-only check on a
    glibc host catches neither.
 
-   Note this is measured against the **released** artifact, so these cells are expected to be red
-   until a fixed tcnative ships. See "Which tcnative is under test" above for running the matrix
-   against a candidate build instead.
+   Measured against the **released** artifact. Re-running the identical matrix against upstream's
+   post-merge snapshot -- `netty-tcnative-boringssl-static:2.0.82.Final-20260819.163017-9`, which
+   carries the #997 fix -- turns both cells green, which is the harness demonstrating a fix rather
+   than only detecting a defect:
+
+   | image | released 2.0.81 | patched 2.0.82 snapshot |
+   |---|---|---|
+   | `eclipse-temurin:21-jdk-alpine` | SIGSEGV in `init_have_lse_atomics` | 4/4 results, PASS |
+   | `amazoncorretto:21-alpine` | `Failed to load any of the given libraries` | 4/4 results, PASS |
+
+   The patched artifact's `DT_NEEDED` is `librt.so.1 libpthread.so.0 libdl.so.2 libc.so.6` -- every
+   one a musl-reserved stem, satisfied by the loader itself, never a file lookup.
 
 ## Portability notes
 
