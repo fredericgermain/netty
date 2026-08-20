@@ -58,6 +58,17 @@ past a weaker one.
   preflight. Otherwise a run labelled BoringSSL can quietly be OpenSSL, or nothing at all.
 - **Skipped cells are listed.** Silent truncation of a matrix reads as "we covered everything".
 
+## In CI
+
+`.github/workflows/ci-tls-matrix.yml` runs this on native x86_64 and aarch64 runners: `gate` mode
+on push and pull request, `insight` mode on a weekly schedule and on demand. Results are uploaded
+as artifacts even when the matrix fails, because the jsonl and the run log are how you tell a
+regression from an image that changed underneath you.
+
+Every cell runs one TLS 1.2 suite and one TLS 1.3 suite. They are genuinely different code paths --
+in TLS 1.3 the client reaches FINISHED before the server is done, and NewSessionTicket follows the
+handshake proper -- so a gate that only ran 1.2 would miss half of what applications negotiate.
+
 ## Findings from the first runs
 
 Kept here because they are the evidence for the checks above.
@@ -79,7 +90,14 @@ Kept here because they are the evidence for the checks above.
    boringssl-static needs nothing.
 5. **openssl-dynamic publishes no `linux-aarch_64` classifier**, only `linux-aarch_64-fedora`. The
    openssl cells are therefore x86_64-only unless the fedora classifier is used.
-6. **Released netty-tcnative 2.0.81 boringssl-static SIGSEGVs the JVM on Alpine aarch64**:
+6. **TLS 1.3 was not benchmarked at all**, on any provider: both base classes pinned the engine
+   to `TLSv1.2`. Enabling it needed more than a parameter. The engine benchmarks drove the
+   handshake in lock step and stopped when both sides reported `FINISHED`, which is the TLS 1.2
+   flow; in TLS 1.3 the client reports `FINISHED` while it still has its own Finished to send, so
+   the server never completes. They also reused handshake buffers across invocations, and TLS 1.3's
+   post-handshake NewSessionTicket left bytes behind that the next invocation read as a new stream.
+   Both fixed; the handler benchmarks, which go through `SslHandler`, were already correct.
+7. **Released netty-tcnative 2.0.81 boringssl-static SIGSEGVs the JVM on Alpine aarch64**:
    `# C [libnetty_tcnative_linux_aarch_64…so+0x2476c] init_have_lse_atomics+0xc`. That is libgcc's
    AArch64 outline-atomics probe calling `__getauxval` from an ELF init constructor, which musl
    does not export -- netty-tcnative issue #907. It is a hard crash rather than an
@@ -91,7 +109,8 @@ Kept here because they are the evidence for the checks above.
 Both scripts run on Linux and macOS hosts, which took two fixes worth remembering:
 
 - macOS ships bash 3.2, where expanding an empty array under `set -u` is an "unbound variable"
-  error. `run.sh` uses plain strings for optional argument lists.
+  error rather than nothing. `run.sh` uses plain strings for optional argument lists; `matrix.sh`
+  guards every array expansion on `${#arr[@]}`.
 - On macOS `mktemp -d` returns a path under `/var/folders`, which Colima does not share with its
   VM. A container writing there succeeds, the bytes never reach the host, and the results come back
   empty with no error anywhere. `run.sh` puts its scratch directory under `--out` instead.

@@ -1,0 +1,134 @@
+# ----------------------------------------------------------------------------
+# Copyright 2026 The Netty Project
+#
+# The Netty Project licenses this file to you under the Apache License,
+# version 2.0 (the "License"); you may not use this file except in compliance
+# with the License. You may obtain a copy of the License at:
+#
+#   https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations
+# under the License.
+# ----------------------------------------------------------------------------
+# Run the microbench TLS benchmarks across libc, architecture and JDK vendor.
+#
+# The Linux native artifacts are built on CentOS and tested on Ubuntu, so nothing else in CI
+# exercises a TLS handshake on musl, on a vendor JDK image, or on aarch64. `gate` mode is cheap
+# enough to sit on every PR and only asks that each cell completes and returns finite numbers;
+# `insight` mode produces the numbers worth reading. See .github/scripts/tls-matrix/README.md.
+name: TLS benchmark matrix
+
+on:
+  push:
+    branches: [ "4.1", "4.2", "5.0" ]
+
+  pull_request:
+    branches: [ "4.1", "4.2", "5.0" ]
+
+  schedule:
+    # Sunday 03:00 UTC, in insight mode.
+    - cron: '0 3 * * 0'
+
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'gate (fast, pass/fail) or insight (slow, real numbers)'
+        required: false
+        default: insight
+        type: choice
+        options: [ gate, insight ]
+
+env:
+  MAVEN_OPTS: -Dhttp.keepAlive=false -Dmaven.wagon.http.pool=false -Dmaven.wagon.http.retryhandler.count=5 -Dmaven.wagon.httpconnectionManager.ttlSeconds=240
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tls-matrix:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Native runners on both architectures. Emulated timings are noise, so an emulated
+          # aarch64 leg would be worse than no aarch64 leg -- it would produce numbers that look
+          # comparable and are not.
+          - runner: ubuntu-latest
+            arch: x86_64
+          - runner: ubuntu-24.04-arm
+            arch: aarch64
+
+    name: tls-matrix-${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - uses: actions/cache@v4
+        continue-on-error: true
+        with:
+          path: ~/.m2/repository
+          key: cache-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            cache-maven-${{ hashFiles('**/pom.xml') }}
+            cache-maven-
+
+      - name: Pick the mode
+        id: mode
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "mode=${{ inputs.mode }}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event_name }}" = "schedule" ]; then
+            echo "mode=insight" >> "$GITHUB_OUTPUT"
+          else
+            echo "mode=gate" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install the reactor
+        run: ./mvnw -B -ntp -pl microbench -am install -DskipTests=true -Drevapi.skip=true -Dcheckstyle.skip=true -Dforbiddenapis.skip=true
+
+      # One shaded jar per tcnative flavour: the two artifacts both provide io.netty.internal.tcnative
+      # and cannot share a classpath, so the flavour has to be decided when the jar is built.
+      - name: Build the boringssl-static benchmark jar
+        run: |
+          ./mvnw -B -ntp -pl microbench -Pbenchmark-jar package -DskipTests=true \
+                 -Drevapi.skip=true -Dcheckstyle.skip=true -Dforbiddenapis.skip=true \
+                 -Dtcnative.artifactId=netty-tcnative-boringssl-static
+          cp microbench/target/microbenchmarks.jar /tmp/mb-boringssl.jar
+
+      # openssl-dynamic publishes no plain linux-aarch_64 classifier, only linux-aarch_64-fedora,
+      # so this jar exists on x86_64 only. matrix.sh reports the resulting cells as skipped rather
+      # than quietly leaving them out.
+      - name: Build the openssl-dynamic benchmark jar
+        if: ${{ matrix.arch == 'x86_64' }}
+        run: |
+          ./mvnw -B -ntp -pl microbench -Pbenchmark-jar package -DskipTests=true \
+                 -Drevapi.skip=true -Dcheckstyle.skip=true -Dforbiddenapis.skip=true \
+                 -Dtcnative.artifactId=netty-tcnative
+          cp microbench/target/microbenchmarks.jar /tmp/mb-openssl.jar
+
+      - name: Run the matrix
+        run: |
+          jars="--jar-boringssl /tmp/mb-boringssl.jar"
+          if [ -f /tmp/mb-openssl.jar ]; then jars="$jars --jar-openssl /tmp/mb-openssl.jar"; fi
+          .github/scripts/tls-matrix/matrix.sh $jars \
+            --mode "${{ steps.mode.outputs.mode }}" --out ./results
+
+      # Uploaded even when the matrix fails: the jsonl and the run log are how you tell a genuine
+      # regression from an image that changed underneath us.
+      - name: Upload the results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tls-matrix-${{ matrix.arch }}-${{ steps.mode.outputs.mode }}
+          path: ./results
+          if-no-files-found: warn
