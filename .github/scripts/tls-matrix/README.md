@@ -31,6 +31,28 @@ cp microbench/target/microbenchmarks.jar /tmp/mb-boringssl.jar
 .github/scripts/tls-matrix/matrix.sh --jar-boringssl /tmp/mb-boringssl.jar --out ./results
 ```
 
+### Which tcnative is under test
+
+By default the jar shades whatever `${tcnative.version}` resolves to, which is the **released**
+artifact from Maven Central. That is the right default -- it is what users actually get -- but it
+means the Alpine boringssl cells stay red for as long as a musl defect is unfixed upstream, and
+that the harness cannot show a candidate fix working.
+
+Point it at a locally built tcnative with `-Dtcnative.version`:
+
+```sh
+# in the netty-tcnative checkout
+./mvnw -pl openssl-dynamic,boringssl-static install -DskipTests=true
+
+# in netty
+./mvnw -pl microbench -Pbenchmark-jar package -DskipTests=true \
+       -Dtcnative.artifactId=netty-tcnative-boringssl-static \
+       -Dtcnative.version=2.0.82.Final-SNAPSHOT
+```
+
+`tcnativeVersion` in every result row records what the image actually loaded, so a released run and
+a patched run can be compared directly rather than taken on trust.
+
 Architecture is not an axis. Emulated timings are noise, so aarch64 numbers come from running the
 same script on an aarch64 host; every result row is stamped with `host`, `hostArch`, `arch` and
 `libc`, so the two sets concatenate into one dataset.
@@ -97,12 +119,20 @@ Kept here because they are the evidence for the checks above.
    the server never completes. They also reused handshake buffers across invocations, and TLS 1.3's
    post-handshake NewSessionTicket left bytes behind that the next invocation read as a new stream.
    Both fixed; the handler benchmarks, which go through `SslHandler`, were already correct.
-7. **Released netty-tcnative 2.0.81 boringssl-static SIGSEGVs the JVM on Alpine aarch64**:
-   `# C [libnetty_tcnative_linux_aarch_64…so+0x2476c] init_have_lse_atomics+0xc`. That is libgcc's
-   AArch64 outline-atomics probe calling `__getauxval` from an ELF init constructor, which musl
-   does not export -- netty-tcnative issue #907. It is a hard crash rather than an
-   `UnsatisfiedLinkError`, so an application cannot catch it and fall back. The gate catches this
-   cell; a load-only check on a glibc host does not.
+7. **Released netty-tcnative 2.0.81 fails on Alpine aarch64, in two different ways depending on
+   the image.** On `eclipse-temurin:21-jdk-alpine`, which ships libgcc, boringssl-static loads and
+   then takes the JVM down:
+   `# C [libnetty_tcnative_linux_aarch_64…so+0x2476c] init_have_lse_atomics+0xc` -- libgcc's
+   AArch64 outline-atomics probe calling `__getauxval` from an ELF init constructor, a symbol musl
+   does not export (netty-tcnative issue #907). It is a hard crash rather than an
+   `UnsatisfiedLinkError`, so an application cannot catch it and fall back. On
+   `amazoncorretto:21-alpine`, which ships no libgcc, the same artifact does not load at all:
+   `Failed to load any of the given libraries`. The gate catches both; a load-only check on a
+   glibc host catches neither.
+
+   Note this is measured against the **released** artifact, so these cells are expected to be red
+   until a fixed tcnative ships. See "Which tcnative is under test" above for running the matrix
+   against a candidate build instead.
 
 ## Portability notes
 
