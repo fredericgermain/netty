@@ -57,8 +57,27 @@ public class AbstractSslHandlerBenchmark extends AbstractMicrobenchmark {
                 return SslProvider.OPENSSL_REFCNT;
             }
         };
-        private final SslContext clientContext = newClientContext();
-        private final SslContext serverContext = newServerContext();
+        // Built lazily, not in field initialisers. Enum constants are all constructed in <clinit>,
+        // so eager fields make every constant's context -- including OPENSSL's, which calls
+        // OpenSsl.ensureAvailability() -- a prerequisite for using any of them. That makes the
+        // pure-JDK benchmarks fail on any machine where tcnative is unavailable, which is exactly
+        // where the JDK provider is the one you want to measure.
+        private SslContext clientContext;
+        private SslContext serverContext;
+
+        private synchronized SslContext clientContext() {
+            if (clientContext == null) {
+                clientContext = newClientContext();
+            }
+            return clientContext;
+        }
+
+        private synchronized SslContext serverContext() {
+            if (serverContext == null) {
+                serverContext = newServerContext();
+            }
+            return serverContext;
+        }
 
         private SslContext newClientContext() {
             try {
@@ -90,13 +109,13 @@ public class AbstractSslHandlerBenchmark extends AbstractMicrobenchmark {
         }
 
         SslHandler newClientHandler(ByteBufAllocator allocator, String cipher) {
-            SslHandler handler = clientContext.newHandler(allocator);
+            SslHandler handler = clientContext().newHandler(allocator);
             configureEngine(handler.engine(), cipher);
             return handler;
         }
 
         SslHandler newServerHandler(ByteBufAllocator allocator, String cipher) {
-            SslHandler handler = serverContext.newHandler(allocator);
+            SslHandler handler = serverContext().newHandler(allocator);
             configureEngine(handler.engine(), cipher);
             return handler;
         }
