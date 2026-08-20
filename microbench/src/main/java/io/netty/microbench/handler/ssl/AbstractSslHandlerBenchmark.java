@@ -29,7 +29,7 @@ import io.netty.microbench.util.AbstractMicrobenchmark;
 import io.netty.util.ReferenceCountUtil;
 import org.openjdk.jmh.annotations.Param;
 
-import java.io.File;
+import java.io.InputStream;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLException;
 
@@ -72,11 +72,16 @@ public class AbstractSslHandlerBenchmark extends AbstractMicrobenchmark {
         }
 
         private SslContext newServerContext() {
-            try {
-                File keyFile = new File(getClass().getResource("test_unencrypted.pem").getFile());
-                File crtFile = new File(getClass().getResource("test.crt").getFile());
-
-                return SslContextBuilder.forServer(crtFile, keyFile)
+            // Read the material as streams rather than resolving it to a File. URL.getFile() on a
+            // classpath entry inside a jar yields "file:/....jar!/io/netty/...", which is not a
+            // filesystem path, so the File overload works only from an exploded target/classes and
+            // fails for every SSL benchmark in the shaded benchmark-jar.
+            try (InputStream crt = getClass().getResourceAsStream("test.crt");
+                 InputStream key = getClass().getResourceAsStream("test_unencrypted.pem")) {
+                if (crt == null || key == null) {
+                    throw new IllegalStateException("missing test.crt or test_unencrypted.pem on the classpath");
+                }
+                return SslContextBuilder.forServer(crt, key)
                         .sslProvider(sslProvider())
                         .build();
             } catch (Exception e) {
