@@ -150,15 +150,16 @@ docker run --rm $PLATFORM_ARGS -v "$JAR:/app/mb.jar:ro" -v "$WORK:/out" "$IMAGE"
   set -u
   $INSTALL_PKGS
   java -jar /app/mb.jar '$BENCH' $JMH_OPTS $JMH_PARAMS -rf json -rff /out/jmh.json
-" 2>&1 | tail -25
-RC=${PIPESTATUS[0]}
+" > "$WORK/run.log" 2>&1
+RC=$?
+tail -25 "$WORK/run.log"
 
 # ---------------------------------------------------------------- verdict
 # JMH exits 0 and writes an empty array when every benchmark fails to initialize, so its exit
 # status is not evidence of anything on its own. tag_results.py is where the cell actually passes
 # or fails; everything it checks exists because of that.
 python3 "$HERE/tag_results.py" \
-  --jmh "$WORK/jmh.json" --preflight "$WORK/preflight.txt" \
+  --jmh "$WORK/jmh.json" --preflight "$WORK/preflight.txt" --run-log "$WORK/run.log" \
   --image "$IMAGE" --tcnative "$TCNATIVE" --mode "$MODE" --bench "$BENCH" \
   --expect "$EXPECT" --docker-rc "$RC" \
   --out "$OUT/$CELL.jsonl"
