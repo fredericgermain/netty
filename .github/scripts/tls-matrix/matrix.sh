@@ -94,8 +94,14 @@ echo " cells   : ${#CELLS[@]}"
 echo " skipped : ${#SKIPPED[@]}"
 echo " mode    : $MODE"
 echo "=================================================================="
-for c in "${CELLS[@]}"; do echo "   run  ${c%%|*} / $(echo "$c" | cut -d'|' -f2)"; done
-for s in "${SKIPPED[@]}"; do echo "   SKIP $s"; done
+# Guarded on the count: macOS ships bash 3.2, where expanding an empty array under `set -u` is an
+# "unbound variable" error rather than nothing. Same reason run.sh avoids arrays entirely.
+if [ ${#CELLS[@]} -gt 0 ]; then
+  for c in "${CELLS[@]}"; do echo "   run  ${c%%|*} / $(echo "$c" | cut -d'|' -f2)"; done
+fi
+if [ ${#SKIPPED[@]} -gt 0 ]; then
+  for s in "${SKIPPED[@]}"; do echo "   SKIP $s"; done
+fi
 
 if [ "$DRY" = "1" ]; then
   echo "(dry run)"
@@ -111,16 +117,21 @@ for c in "${CELLS[@]}"; do
   image="${c%%|*}"; tc=$(echo "$c" | cut -d'|' -f2); jar=$(echo "$c" | cut -d'|' -f3)
   # The JDK control only measures the JDK provider; the tcnative cells measure both so each run
   # carries its own baseline and the two are comparable without joining across cells.
-  if [ "$tc" = "none" ]; then providers="JDK"; expect=1; else providers="JDK,OPENSSL"; expect=2; fi
+  # One TLS 1.2 suite and one TLS 1.3 suite, so every cell exercises both handshake flows. They
+  # are genuinely different code paths -- TLS 1.3 reaches FINISHED on the client before the server
+  # is done and sends NewSessionTicket afterwards -- and a gate that only ran 1.2 would miss half
+  # of what applications actually negotiate today.
+  ciphers="TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_AES_128_GCM_SHA256"
+  if [ "$tc" = "none" ]; then providers="JDK"; expect=2; else providers="JDK,OPENSSL"; expect=4; fi
   echo
-  # --expect is the number of provider combinations, not 1. A cell where tcnative crashes the JVM
+  # --expect is providers x ciphers, not 1. A cell where tcnative crashes the JVM
   # still returns the JDK row, and JMH still exits 0, so a count check of "at least one" would let
   # it through. That is not hypothetical: released tcnative 2.0.81 boringssl-static SIGSEGVs in
   # init_have_lse_atomics on Alpine aarch64, and this is one of the two checks that catches it.
   "$HERE/run.sh" --jar "$jar" --image "$image" --tcnative "$tc" --mode "$MODE" --out "$OUT" \
                  --expect "$expect" \
                  -p "sslProvider=$providers" -p "bufferType=DIRECT" \
-                 -p "cipher=TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"
+                 -p "cipher=$ciphers"
   if [ $? -eq 0 ]; then PASS=$((PASS + 1)); else FAIL=$((FAIL + 1)); FAILED_CELLS+=("$image / $tc"); fi
 done
 
@@ -128,8 +139,12 @@ echo
 echo "=================================================================="
 echo " passed  : $PASS"
 echo " failed  : $FAIL"
-for f in "${FAILED_CELLS[@]:-}"; do [ -n "$f" ] && echo "   FAIL $f"; done
-for s in "${SKIPPED[@]:-}"; do [ -n "$s" ] && echo "   SKIP $s"; done
+if [ ${#FAILED_CELLS[@]} -gt 0 ]; then
+  for f in "${FAILED_CELLS[@]}"; do echo "   FAIL $f"; done
+fi
+if [ ${#SKIPPED[@]} -gt 0 ]; then
+  for s in "${SKIPPED[@]}"; do echo "   SKIP $s"; done
+fi
 echo " results : $OUT"
 echo "=================================================================="
 [ "$FAIL" -eq 0 ] || exit 1
