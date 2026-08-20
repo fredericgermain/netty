@@ -69,6 +69,20 @@ Architecture is not an axis. Emulated timings are noise, so aarch64 numbers come
 same script on an aarch64 host; every result row is stamped with `host`, `hostArch`, `arch` and
 `libc`, so the two sets concatenate into one dataset.
 
+## Reading the numbers
+
+`aggregate.py` merges the jsonl from any number of hosts into a coverage table and a score table:
+
+```sh
+python3 .github/scripts/tls-matrix/aggregate.py results/ --out report.md
+```
+
+**Gate-mode scores are not comparable.** With `-f 1 -wi 1 -i 2` and other work on the machine, the
+same cell has been observed at 1891 and 18797 us/op in two consecutive runs -- a 10x swing on an
+identical configuration. Gate mode answers "did this complete and return finite numbers", nothing
+more. Use `--mode insight` on an otherwise idle machine for anything you intend to read, compare or
+quote.
+
 ## Why each image is in the set
 
 | image | why |

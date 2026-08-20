@@ -165,6 +165,15 @@ def main():
 
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
     with open(args.out, "w") as out:
+        if not results:
+            # A cell that produced nothing must still leave a row, or it disappears from any
+            # aggregation over these files and the summary reads as "everything we ran passed".
+            # That is the same silent truncation the result-count check exists to prevent, one
+            # layer up: the worst cells are exactly the ones with no results to write.
+            row = dict(tags)
+            row.update({"benchmark": None, "params": {}, "score": None, "unit": None,
+                        "ok": False, "failures": failures})
+            out.write(json.dumps(row) + "\n")
         for r in results:
             pm = r.get("primaryMetric", {})
             row = dict(tags)
@@ -178,6 +187,7 @@ def main():
                 "forks": r.get("forks"),
                 "measurementIterations": r.get("measurementIterations"),
                 "vmVersion": r.get("vmVersion"),
+                "ok": not failures,
             })
             out.write(json.dumps(row) + "\n")
 
