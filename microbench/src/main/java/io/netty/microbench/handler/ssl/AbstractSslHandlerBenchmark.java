@@ -37,6 +37,18 @@ import static io.netty.handler.codec.ByteToMessageDecoder.COMPOSITE_CUMULATOR;
 
 public class AbstractSslHandlerBenchmark extends AbstractMicrobenchmark {
     private static final String PROTOCOL_TLS_V1_2 = "TLSv1.2";
+    private static final String PROTOCOL_TLS_V1_3 = "TLSv1.3";
+
+    /**
+     * TLS 1.3 renamed its cipher suites and shares none with TLS 1.2, so the suite alone says which
+     * protocol to enable. That keeps the protocol out of the {@code @Param} set: crossing protocol
+     * with cipher would generate combinations that cannot handshake, and JMH has no way to skip
+     * them other than failing the run.
+     */
+    private static String protocolOf(String cipher) {
+        return cipher.startsWith("TLS_AES_") || cipher.startsWith("TLS_CHACHA20_")
+                ? PROTOCOL_TLS_V1_3 : PROTOCOL_TLS_V1_2;
+    }
 
     public enum SslEngineProvider {
         JDK {
@@ -123,7 +135,7 @@ public class AbstractSslHandlerBenchmark extends AbstractMicrobenchmark {
         abstract SslProvider sslProvider();
 
         static SSLEngine configureEngine(SSLEngine engine, String cipher) {
-            engine.setEnabledProtocols(new String[]{ PROTOCOL_TLS_V1_2 });
+            engine.setEnabledProtocols(new String[]{ protocolOf(cipher) });
             engine.setEnabledCipherSuites(new String[]{ cipher });
             return engine;
         }
@@ -133,7 +145,8 @@ public class AbstractSslHandlerBenchmark extends AbstractMicrobenchmark {
     public SslEngineProvider sslProvider;
 
     // Includes cipher required by HTTP/2
-    @Param({ "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256", "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256" })
+    @Param({ "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256", "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+             "TLS_AES_128_GCM_SHA256", "TLS_AES_256_GCM_SHA384" })
     public String cipher;
 
     protected SslHandler clientSslHandler;

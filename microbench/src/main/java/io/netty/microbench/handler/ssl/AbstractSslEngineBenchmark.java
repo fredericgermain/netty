@@ -36,6 +36,18 @@ import javax.net.ssl.SSLException;
 public class AbstractSslEngineBenchmark extends AbstractMicrobenchmark {
 
     private static final String PROTOCOL_TLS_V1_2 = "TLSv1.2";
+    private static final String PROTOCOL_TLS_V1_3 = "TLSv1.3";
+
+    /**
+     * TLS 1.3 renamed its cipher suites and shares none with TLS 1.2, so the suite alone says which
+     * protocol to enable. That keeps the protocol out of the {@code @Param} set: crossing protocol
+     * with cipher would generate combinations that cannot handshake, and JMH has no way to skip
+     * them other than failing the run.
+     */
+    private static String protocolOf(String cipher) {
+        return cipher.startsWith("TLS_AES_") || cipher.startsWith("TLS_CHACHA20_")
+                ? PROTOCOL_TLS_V1_3 : PROTOCOL_TLS_V1_2;
+    }
 
     public enum SslEngineProvider {
         JDK {
@@ -118,7 +130,7 @@ public class AbstractSslEngineBenchmark extends AbstractMicrobenchmark {
         abstract SslProvider sslProvider();
 
         static SSLEngine configureEngine(SSLEngine engine, String cipher) {
-            engine.setEnabledProtocols(new String[]{ PROTOCOL_TLS_V1_2 });
+            engine.setEnabledProtocols(new String[]{ protocolOf(cipher) });
             engine.setEnabledCipherSuites(new String[]{ cipher });
             return engine;
         }
@@ -159,7 +171,8 @@ public class AbstractSslEngineBenchmark extends AbstractMicrobenchmark {
     public BufferType bufferType;
 
     // Includes cipher required by HTTP/2
-    @Param({ "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256", "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256" })
+    @Param({ "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256", "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+             "TLS_AES_128_GCM_SHA256", "TLS_AES_256_GCM_SHA384" })
     public String cipher;
 
     protected SSLEngine clientEngine;
@@ -211,74 +224,99 @@ public class AbstractSslEngineBenchmark extends AbstractMicrobenchmark {
         cleanableEmpty.clean();
     }
 
+    /**
+     * Drives both engines to a completed handshake, each according to its own
+     * {@link SSLEngineResult.HandshakeStatus}.
+     *
+     * <p>The previous version ran the two engines in lock step -- both wrap, both unwrap, stop when
+     * both had reported {@code FINISHED} -- which is shaped around the TLS 1.2 message flow and
+     * cannot complete a TLS 1.3 one. In TLS 1.3 the client reports {@code FINISHED} as soon as it
+     * has unwrapped the server's Finished, while it still has its own Finished to send; a
+     * finished-flag loop skips that wrap, the server never completes, and the buffers desynchronise
+     * into {@code SSLException: Unrecognized SSL message, plaintext connection?}. TLS 1.3 also
+     * sends NewSessionTicket after the handshake proper, which the same loop had no way to drain.
+     *
+     * <p>Asking each engine what it wants next handles both protocol versions without special
+     * cases. {@code idle} is the termination guard: an engine that is neither wrapping nor
+     * unwrapping and has no buffered input has nothing left to contribute.
+     */
     protected final boolean doHandshake() throws SSLException {
+        // The engines are recreated per invocation but the buffers are allocated once per iteration
+        // and reused, so a handshake has to start from empty ones. TLS 1.2 happened to drain them;
+        // TLS 1.3 sends NewSessionTicket after the handshake proper, and those bytes left in sTOc
+        // are read by the next invocation's fresh client engine as the start of a new stream --
+        // "Unrecognized SSL message, plaintext connection?".
+        cTOs.clear();
+        sTOc.clear();
+        clientAppReadBuffer.clear();
+        serverAppReadBuffer.clear();
+
         clientEngine.beginHandshake();
         serverEngine.beginHandshake();
 
         SSLEngineResult clientResult = null;
         SSLEngineResult serverResult = null;
+        int idle = 0;
 
-        boolean clientHandshakeFinished = false;
-        boolean serverHandshakeFinished = false;
+        while (isHandshaking(clientEngine) || isHandshaking(serverEngine)) {
+            boolean progress = false;
 
-        do {
-            int cTOsPos = cTOs.position();
-            int sTOcPos = sTOc.position();
-
-            if (!clientHandshakeFinished) {
+            if (wants(clientEngine, SSLEngineResult.HandshakeStatus.NEED_WRAP)) {
                 clientResult = clientEngine.wrap(empty, cTOs);
                 runDelegatedTasks(clientResult, clientEngine);
-                assert empty.remaining() == clientResult.bytesConsumed();
-                assert cTOs.position() - cTOsPos == clientResult.bytesProduced();
-
-                clientHandshakeFinished = isHandshakeFinished(clientResult);
+                progress |= clientResult.bytesProduced() > 0;
             }
-
-            if (!serverHandshakeFinished) {
+            if (wants(serverEngine, SSLEngineResult.HandshakeStatus.NEED_WRAP)) {
                 serverResult = serverEngine.wrap(empty, sTOc);
                 runDelegatedTasks(serverResult, serverEngine);
-                assert empty.remaining() == serverResult.bytesConsumed();
-                assert sTOc.position() - sTOcPos == serverResult.bytesProduced();
-
-                serverHandshakeFinished = isHandshakeFinished(serverResult);
+                progress |= serverResult.bytesProduced() > 0;
             }
 
             cTOs.flip();
             sTOc.flip();
 
-            cTOsPos = cTOs.position();
-            sTOcPos = sTOc.position();
-
-            if (!clientHandshakeFinished) {
-                int clientAppReadBufferPos = clientAppReadBuffer.position();
+            if (sTOc.hasRemaining() && wants(clientEngine, SSLEngineResult.HandshakeStatus.NEED_UNWRAP)) {
                 clientResult = clientEngine.unwrap(sTOc, clientAppReadBuffer);
-
                 runDelegatedTasks(clientResult, clientEngine);
-                assert sTOc.position() - sTOcPos == clientResult.bytesConsumed();
-                assert clientAppReadBuffer.position() - clientAppReadBufferPos == clientResult.bytesProduced();
-
-                clientHandshakeFinished = isHandshakeFinished(clientResult);
-            } else {
-                assert !sTOc.hasRemaining();
+                progress |= clientResult.bytesConsumed() > 0;
             }
-
-            if (!serverHandshakeFinished) {
-                int serverAppReadBufferPos = serverAppReadBuffer.position();
+            if (cTOs.hasRemaining() && wants(serverEngine, SSLEngineResult.HandshakeStatus.NEED_UNWRAP)) {
                 serverResult = serverEngine.unwrap(cTOs, serverAppReadBuffer);
                 runDelegatedTasks(serverResult, serverEngine);
-                assert cTOs.position() - cTOsPos == serverResult.bytesConsumed();
-                assert serverAppReadBuffer.position() - serverAppReadBufferPos == serverResult.bytesProduced();
-
-                serverHandshakeFinished = isHandshakeFinished(serverResult);
-            } else {
-                assert !cTOs.hasRemaining();
+                progress |= serverResult.bytesConsumed() > 0;
             }
 
             sTOc.compact();
             cTOs.compact();
-        } while (!clientHandshakeFinished || !serverHandshakeFinished);
-        return clientResult.getStatus() == SSLEngineResult.Status.OK &&
+
+            if (progress) {
+                idle = 0;
+            } else if (++idle > 8) {
+                break;
+            }
+        }
+
+        return clientResult != null && serverResult != null &&
+                clientResult.getStatus() == SSLEngineResult.Status.OK &&
                 serverResult.getStatus() == SSLEngineResult.Status.OK;
+    }
+
+    /**
+     * True while the engine still has handshake work of its own. NOT_HANDSHAKING and FINISHED both
+     * mean "nothing more from this side"; FINISHED is only ever reported once, on the result that
+     * completes it.
+     */
+    private static boolean isHandshaking(SSLEngine engine) {
+        SSLEngineResult.HandshakeStatus status = engine.getHandshakeStatus();
+        return status != SSLEngineResult.HandshakeStatus.NOT_HANDSHAKING &&
+               status != SSLEngineResult.HandshakeStatus.FINISHED;
+    }
+
+    private static boolean wants(SSLEngine engine, SSLEngineResult.HandshakeStatus status) {
+        SSLEngineResult.HandshakeStatus current = engine.getHandshakeStatus();
+        // NEED_TASK is resolved by runDelegatedTasks after the call, so an engine sitting on it
+        // still needs to be driven; treat it as willing to do either.
+        return current == status || current == SSLEngineResult.HandshakeStatus.NEED_TASK;
     }
 
     protected final SSLEngine newClientEngine(ByteBufAllocator allocator) {
@@ -295,10 +333,6 @@ public class AbstractSslEngineBenchmark extends AbstractMicrobenchmark {
 
     protected final CleanableDirectBuffer allocateBuffer(int size) {
         return bufferType.newBuffer(size);
-    }
-
-    private static boolean isHandshakeFinished(SSLEngineResult result) {
-        return result.getHandshakeStatus() == SSLEngineResult.HandshakeStatus.FINISHED;
     }
 
     private static void runDelegatedTasks(SSLEngineResult result, SSLEngine engine) {
