@@ -34,6 +34,7 @@ several hosts and architectures concatenate into one file and aggregate without 
 import argparse
 import json
 import math
+import re
 import os
 import platform
 import socket
@@ -54,10 +55,43 @@ def parse_preflight(path):
     return info
 
 
+def classify_failure(run_log_path, tcnative_version):
+    """Name the mechanism, not just the verdict.
+
+    Two very different things both end up as a failed cell, and a reader who sees only FAIL will
+    conflate them:
+
+      jvm-crash      a constructor in .init_array died during dlopen. This is the one case musl's
+                     deferred-relocation behaviour does not cover -- an unresolved symbol reached
+                     from an init constructor takes the process down instead of waiting to be
+                     called -- so the JVM gets SIGSEGV inside JVM_LoadLibrary and the application
+                     cannot catch it or fall back. Released netty-tcnative on Alpine aarch64 does
+                     this, in init_have_lse_atomics via __getauxval.
+      library-load   an ordinary dlopen failure, e.g. a DT_NEEDED the image cannot resolve. Netty
+                     reports it as UnsatisfiedLinkError, which an application can catch.
+
+    Same verdict, different remedy, and only the first one is uncatchable.
+    """
+    frame = None
+    if run_log_path and os.path.exists(run_log_path):
+        with open(run_log_path, errors="replace") as f:
+            log = f.read()
+        if "SIGSEGV" in log or "SIGBUS" in log or "SIGILL" in log:
+            m = re.search(r"^# C\s+\[(.+?)\]\s*(\S+)?", log, re.M)
+            frame = m.group(0).strip() if m else "signal reported, no native frame captured"
+            return "jvm-crash", frame
+        if "Failed to load any of the given libraries" in log or "UnsatisfiedLinkError" in log:
+            return "library-load", None
+    if tcnative_version.startswith("unavailable"):
+        return "library-load", None
+    return None, None
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--jmh", required=True)
     ap.add_argument("--preflight", required=True)
+    ap.add_argument("--run-log", default=None)
     ap.add_argument("--image", required=True)
     ap.add_argument("--tcnative", required=True)
     ap.add_argument("--mode", required=True)
@@ -69,6 +103,7 @@ def main():
 
     pre = parse_preflight(args.preflight)
     failures = []
+    failure_mode, crash_frame = classify_failure(args.run_log, pre.get("tcnativeVersion", ""))
 
     results = []
     if not os.path.exists(args.jmh):
@@ -124,6 +159,8 @@ def main():
         "tcnativeVersion": tcnative_version or None,
         "mode": args.mode,
         "benchSelector": args.bench,
+        "failureMode": failure_mode,
+        "crashFrame": crash_frame,
     }
 
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
@@ -146,6 +183,10 @@ def main():
 
     print("-- verdict")
     print("   results   : %d" % len(results))
+    if failure_mode:
+        print("   mechanism : %s" % failure_mode)
+        if crash_frame:
+            print("   frame     : %s" % crash_frame)
     print("   tcnative  : %s" % (tcnative_version or "n/a"))
     print("   written   : %s" % args.out)
     if failures:

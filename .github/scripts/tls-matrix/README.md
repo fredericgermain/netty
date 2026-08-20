@@ -91,6 +91,19 @@ past a weaker one.
 - **The loaded tcnative matches what was requested**, via `SSL.versionString()` in a `jshell`
   preflight. Otherwise a run labelled BoringSSL can quietly be OpenSSL, or nothing at all.
 - **Skipped cells are listed.** Silent truncation of a matrix reads as "we covered everything".
+- **The failure *mechanism* is named**, not just the verdict, in `failureMode` on every row and in
+  the run output. Two very different things both end as FAIL and readers will otherwise conflate
+  them:
+
+  | `failureMode` | what happened | catchable by the application? |
+  |---|---|---|
+  | `jvm-crash` | a constructor in `.init_array` died during `dlopen`; `crashFrame` names it | **no** -- SIGSEGV inside `JVM_LoadLibrary` |
+  | `library-load` | an ordinary `dlopen` failure, e.g. an unresolvable `DT_NEEDED` | yes -- `UnsatisfiedLinkError` |
+
+  `jvm-crash` is the one case musl's deferred-relocation behaviour does not cover: an unresolved
+  symbol reached from an init constructor takes the process down at load rather than waiting to be
+  called. Released netty-tcnative on Alpine aarch64 does exactly this, in `init_have_lse_atomics`
+  via `__getauxval`.
 
 ## In CI
 
