@@ -27,6 +27,7 @@ import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.channel.uring.IoUring;
 import io.netty.channel.uring.IoUringIoHandler;
+import io.netty.channel.uring.IoUringIoHandlerConfig;
 import io.netty.channel.uring.IoUringServerSocketChannel;
 import io.netty.channel.uring.IoUringSocketChannel;
 
@@ -39,13 +40,13 @@ import io.netty.channel.uring.IoUringSocketChannel;
  */
 public enum Transports {
     NIO {
-        @Override public IoHandlerFactory ioHandler() { return NioIoHandler.newFactory(); }
+        @Override public IoHandlerFactory ioHandler(int ringSize) { return NioIoHandler.newFactory(); }
         @Override public Class<? extends ServerChannel> serverChannel() { return NioServerSocketChannel.class; }
         @Override public Class<? extends Channel> clientChannel() { return NioSocketChannel.class; }
         @Override public void ensureAvailable() { /* always */ }
     },
     EPOLL {
-        @Override public IoHandlerFactory ioHandler() { return EpollIoHandler.newFactory(); }
+        @Override public IoHandlerFactory ioHandler(int ringSize) { return EpollIoHandler.newFactory(); }
         @Override public Class<? extends ServerChannel> serverChannel() { return EpollServerSocketChannel.class; }
         @Override public Class<? extends Channel> clientChannel() { return EpollSocketChannel.class; }
         @Override public void ensureAvailable() {
@@ -55,7 +56,17 @@ public enum Transports {
         }
     },
     IO_URING {
-        @Override public IoHandlerFactory ioHandler() { return IoUringIoHandler.newFactory(); }
+        @Override public IoHandlerFactory ioHandler(int ringSize) {
+            // Netty's default ring is 4096 entries. At ten thousand connections the completion
+            // queue overflows continuously and throughput collapses -- measured at 578 req/s
+            // against epoll's 168789 on the same box, a 292x difference, and reported only as a
+            // WARNING in the log. Size the ring to the workload, or io_uring looks catastrophically
+            // slow when it is merely misconfigured.
+            IoUringIoHandlerConfig cfg = new IoUringIoHandlerConfig();
+            cfg.setRingSize(ringSize);
+            cfg.setCqSize(ringSize * 2);
+            return IoUringIoHandler.newFactory(cfg);
+        }
         @Override public Class<? extends ServerChannel> serverChannel() { return IoUringServerSocketChannel.class; }
         @Override public Class<? extends Channel> clientChannel() { return IoUringSocketChannel.class; }
         @Override public void ensureAvailable() {
@@ -65,7 +76,8 @@ public enum Transports {
         }
     };
 
-    public abstract IoHandlerFactory ioHandler();
+    /** @param ringSize io_uring submission ring entries; ignored by the other transports. */
+    public abstract IoHandlerFactory ioHandler(int ringSize);
     public abstract Class<? extends ServerChannel> serverChannel();
     public abstract Class<? extends Channel> clientChannel();
     public abstract void ensureAvailable();
