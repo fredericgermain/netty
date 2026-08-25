@@ -214,6 +214,46 @@ musl rather than to this harness.
 With the patched artifact (`2.0.82.Final-SNAPSHOT`, carrying #997) every boringssl-static cell
 passes on both architectures and all three images.
 
+## What insight mode found
+
+Handshake, x86_64, idle host, `-f 3 -wi 5 -i 10`, us/op with JMH's 99.9% error.
+
+**openssl-dynamic 2.0.81 -- musl costs 12-22%:**
+
+| provider | tls | glibc | musl (temurin) | musl (corretto) |
+|---|---|---|---|---|
+| JDK | 1.2 | 1935.5 ± 37.9 | 1925.2 ± 35.7 | 1958.7 ± 46.5 |
+| JDK | 1.3 | 2231.0 ± 61.0 | 2194.3 ± 30.5 | 2326.7 ± 61.9 |
+| OPENSSL | 1.2 | **990.4 ± 19.8** | **1111.3 ± 28.2** | **1115.3 ± 34.8** |
+| OPENSSL | 1.3 | **1061.1 ± 18.6** | **1240.6 ± 39.8** | **1298.2 ± 26.0** |
+
+**boringssl-static 2.0.82 -- no libc penalty at all:**
+
+| provider | tls | glibc | musl (temurin) | musl (corretto) |
+|---|---|---|---|---|
+| JDK | 1.2 | 2127.5 ± 32.2 | 2073.2 ± 60.0 | 2021.4 ± 76.7 |
+| JDK | 1.3 | 2472.6 ± 124.8 | 2281.0 ± 53.5 | 2231.0 ± 54.7 |
+| OPENSSL | 1.2 | 804.2 ± 16.9 | 796.7 ± 13.9 | 777.5 ± 8.8 |
+| OPENSSL | 1.3 | 1346.3 ± 11.1 | 1352.9 ± 17.6 | 1360.1 ± 12.0 |
+
+So **the musl handshake penalty belongs to openssl-dynamic, not to musl or to tcnative in
+general**. The openssl-dynamic gaps are 120-240 us against error bars of 20-40 and do not overlap;
+every boringssl-static comparison overlaps. The JDK rows are the control and show no libc effect in
+either table, as they should -- that crypto is Java.
+
+The mechanism is plausible without being proven here: openssl-dynamic resolves libssl and
+libcrypto at runtime, so on Alpine it runs Alpine's OpenSSL build rather than the one the artifact
+was tested against, while boringssl-static compiles BoringSSL in, so the crypto is identical
+machine code on every libc and only the thin JNI layer touches libc at all. If you are on Alpine
+and care about handshake rate, static BoringSSL is not merely the flavour that works, it is also
+the one with no libc cost.
+
+Also visible, and **not** explained here: TLS 1.3 handshakes are slower than TLS 1.2 for every
+provider, and dramatically so for BoringSSL (804 -> 1346, +67%, tight error bars). Treat that as an
+observation rather than a result. A TLS 1.2 suite names its key exchange and authentication and a
+TLS 1.3 suite does not, so the two rows may not be negotiating the same group or signature
+algorithm; that confound has to be removed before the comparison means anything.
+
 ## Portability notes
 
 Both scripts run on Linux and macOS hosts, which took two fixes worth remembering:
