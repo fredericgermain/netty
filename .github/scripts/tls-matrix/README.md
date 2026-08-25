@@ -182,6 +182,38 @@ Kept here because they are the evidence for the checks above.
    The patched artifact's `DT_NEEDED` is `librt.so.1 libpthread.so.0 libdl.so.2 libc.so.6` -- every
    one a musl-reserved stem, satisfied by the loader itself, never a file lookup.
 
+## Coverage as measured, 2026-08-20
+
+Both architectures on native hardware: x86_64 on an idle Linux host, aarch64 on an Apple Silicon
+Mac under Colima. Gate mode.
+
+Released netty-tcnative 2.0.81, nine cells per architecture:
+
+| image | JDK only | boringssl-static | openssl-dynamic |
+|---|---|---|---|
+| `eclipse-temurin:21-jdk` (glibc) | PASS | PASS | PASS |
+| `eclipse-temurin:21-jdk-alpine` | PASS | **FAIL** | **PASS** |
+| `amazoncorretto:21-alpine` | PASS | **FAIL** | **PASS** |
+
+Two things worth pulling out of that table:
+
+- **openssl-dynamic loads on Alpine where boringssl-static does not**, on released 2.0.81. It
+  reports `OpenSSL 3.5.7` once `apr` and `openssl` are installed in the image. So the flavour most
+  people reach for first is the broken one, and there is a workaround available today for anyone
+  who cannot wait for a fixed release. openssl-dynamic is x86_64-only, though: no plain
+  `linux-aarch_64` classifier is published, only `linux-aarch_64-fedora`.
+- **The same defect presents differently per architecture.** x86_64 fails as `library-load` -- the
+  `ld-linux-x86-64.so.2` entry in DT_NEEDED, which never resolves, so the library does not load at
+  all. aarch64 loads and then dies as `jvm-crash` in `init_have_lse_atomics`. Anyone testing on one
+  architecture and generalising will draw the wrong conclusion about severity, since only the
+  aarch64 form is uncatchable.
+
+The glibc control passes in every cell, which is what makes the Alpine failures attributable to
+musl rather than to this harness.
+
+With the patched artifact (`2.0.82.Final-SNAPSHOT`, carrying #997) every boringssl-static cell
+passes on both architectures and all three images.
+
 ## Portability notes
 
 Both scripts run on Linux and macOS hosts, which took two fixes worth remembering:
