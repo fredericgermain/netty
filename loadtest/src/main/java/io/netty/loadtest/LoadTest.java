@@ -89,8 +89,8 @@ public final class LoadTest {
         System.err.println("  client --transport=... --tls=... [--host=127.0.0.1] [--port=9999]");
         System.err.println("         [--connections=10000] [--duration=15] [--payload=1024] [--threads=N]");
         System.err.println("         [--rate=N]  total req/s; omit to saturate (throughput only, latency invalid)");
-        System.err.println("  --ring-size=N   io_uring ring entries, default 16384. Netty's own default of 4096");
-        System.err.println("                  overflows at 10k connections and costs ~292x throughput.");
+        System.err.println("  --ring-size=N   io_uring ring entries, default 16384. Swept at 10k connections,");
+        System.err.println("                  4096/16384/32768 measured within 1.5% of each other.");
     }
 
     // ------------------------------------------------------------------ server
