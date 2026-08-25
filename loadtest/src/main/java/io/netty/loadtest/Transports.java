@@ -57,11 +57,16 @@ public enum Transports {
     },
     IO_URING {
         @Override public IoHandlerFactory ioHandler(int ringSize) {
-            // Netty's default ring is 4096 entries. At ten thousand connections the completion
-            // queue overflows continuously and throughput collapses -- measured at 578 req/s
-            // against epoll's 168789 on the same box, a 292x difference, and reported only as a
-            // WARNING in the log. Size the ring to the workload, or io_uring looks catastrophically
-            // slow when it is merely misconfigured.
+            // Configurable, but do NOT expect it to matter much. A run that produced 578 req/s
+            // against epoll's 168789 also logged "CompletionQueue overflow detected, consider
+            // increasing size: 4096", and the ring looked like the cause. It was not: sweeping
+            // 4096 / 16384 / 32768 at ten thousand connections gives 127590 / 127014 / 125817
+            // req/s, which is no difference at all. That run was contending with a second load
+            // test for the same port and cores, and the overflow warning was a symptom of the
+            // contention rather than its cause.
+            //
+            // Left configurable because the knob is real and a different workload may need it, and
+            // because a documented negative result is worth more than a knob nobody has swept.
             IoUringIoHandlerConfig cfg = new IoUringIoHandlerConfig();
             cfg.setRingSize(ringSize);
             cfg.setCqSize(ringSize * 2);
