@@ -127,6 +127,16 @@ public final class LoadTest {
                     });
             Channel ch = b.bind(new InetSocketAddress(a.get("host", "0.0.0.0"), a.getInt("port", 9999)))
                           .sync().channel();
+            // Cumulative snapshots on a fixed cadence, rather than one total at shutdown. The
+            // server outlives several phases and a single total would conflate the ramp -- ten
+            // thousand TLS handshakes -- with the steady state, which is the part under
+            // comparison. Any two lines give a delta of both CPU and requests, so the caller can
+            // bracket whichever window it cares about.
+            worker.next().scheduleAtFixedRate(() -> System.out.printf(
+                    "SERVERCPU tMs=%d requests=%d %s%n",
+                    System.currentTimeMillis(), SERVER_REQUESTS.get(), Counters.snapshot()),
+                    2, 2, TimeUnit.SECONDS);
+
             System.out.println("READY transport=" + t + " tls=" + a.get("tls", "none")
                     + " backlog=" + a.getInt("backlog", 8192) + " threads=" + a.threads()
                     + " ringSize=" + ringSize);
@@ -138,9 +148,13 @@ public final class LoadTest {
         }
     }
 
+    /** Counts what the server has echoed, so its CPU deltas can be divided by something. */
+    private static final AtomicLong SERVER_REQUESTS = new AtomicLong();
+
     /** Echoes the frame straight back. Nothing allocated, nothing copied. */
     private static final class EchoHandler extends ChannelInboundHandlerAdapter {
         @Override public void channelRead(ChannelHandlerContext ctx, Object msg) {
+            SERVER_REQUESTS.incrementAndGet();
             ctx.writeAndFlush(msg);
         }
         @Override public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
@@ -245,6 +259,7 @@ public final class LoadTest {
             // ---------------- steady
             latency.reset();
             requests.set(0);
+            Counters before = Counters.snapshot();
             long steadyStart = System.nanoTime();
             // Stagger the open-loop tickers across one interval, or 10k connections all fire in
             // the same millisecond and the load arrives as a spike rather than at the target rate.
@@ -263,6 +278,7 @@ public final class LoadTest {
             // Let anything in flight land before reading the histogram.
             Thread.sleep(200);
 
+            Counters delta = Counters.snapshot().since(before);
             double seconds = steadyNanos / 1e9;
             double achieved = requests.get() / seconds;
             // Percentiles from an open-loop run only mean anything if the offered rate was actually
@@ -280,6 +296,10 @@ public final class LoadTest {
                 seconds, requests.get(), achieved, rate, errors.get(),
                 latency.getValueAtPercentile(50.0), latency.getValueAtPercentile(99.0),
                 latency.getValueAtPercentile(99.9), latency.getMaxValue(), mode);
+            // Where the client spent itself. The server prints its own on shutdown; the two are
+            // reported separately because they are pinned to different cores and answer different
+            // questions.
+            System.out.printf("CLIENTCPU %s %s%n", delta, delta.perRequest(requests.get()));
             System.out.flush();
         } finally {
             for (Channel ch : channels) {
