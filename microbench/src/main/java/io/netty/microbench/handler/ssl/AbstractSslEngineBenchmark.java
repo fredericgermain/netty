@@ -18,6 +18,7 @@ package io.netty.microbench.handler.ssl;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
+import io.netty.handler.ssl.OpenSslContextOption;
 import io.netty.handler.ssl.SslProvider;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import io.netty.microbench.util.AbstractMicrobenchmark;
@@ -90,12 +91,36 @@ public class AbstractSslEngineBenchmark extends AbstractMicrobenchmark {
             return serverContext;
         }
 
+        /**
+         * The key exchange group, from {@code -Dnetty.bench.tls.groups=X25519} or similar.
+         *
+         * <p>Without this the TLS 1.2 and TLS 1.3 rows are not comparable, because each side picks
+         * its own default and they differ: the JDK offers secp256r1 for TLS 1.2 and x25519 for TLS
+         * 1.3, and the BoringSSL bundled in netty-tcnative has X25519MLKEM768 and X25519Kyber768
+         * compiled in, so a TLS 1.3 handshake between two BoringSSL peers may be doing
+         * post-quantum key exchange while the TLS 1.2 row does classical ECDHE. That is a real
+         * difference worth measuring, but only once it is the thing being varied rather than an
+         * uncontrolled side effect of the protocol version.
+         *
+         * <p>A system property rather than a {@code @Param} because the contexts are built once
+         * per provider per JVM, which is the granularity a JMH fork gives you anyway. Pair it with
+         * {@code -Djdk.tls.namedGroups} for the JDK provider, which has no equivalent option here.
+         */
+        private static String[] configuredGroups() {
+            String groups = System.getProperty("netty.bench.tls.groups", "");
+            return groups.isEmpty() ? null : groups.split(",");
+        }
+
         private SslContext newClientContext() {
             try {
-                return SslContextBuilder.forClient()
+                SslContextBuilder b = SslContextBuilder.forClient()
                         .sslProvider(sslProvider())
-                        .trustManager(InsecureTrustManagerFactory.INSTANCE)
-                        .build();
+                        .trustManager(InsecureTrustManagerFactory.INSTANCE);
+                String[] groups = configuredGroups();
+                if (groups != null && sslProvider() != SslProvider.JDK) {
+                    b.option(OpenSslContextOption.GROUPS, groups);
+                }
+                return b.build();
             } catch (SSLException e) {
                 throw new IllegalStateException(e);
             }
@@ -111,9 +136,13 @@ public class AbstractSslEngineBenchmark extends AbstractMicrobenchmark {
                 if (crt == null || key == null) {
                     throw new IllegalStateException("missing test.crt or test_unencrypted.pem on the classpath");
                 }
-                return SslContextBuilder.forServer(crt, key)
-                        .sslProvider(sslProvider())
-                        .build();
+                SslContextBuilder b = SslContextBuilder.forServer(crt, key)
+                        .sslProvider(sslProvider());
+                String[] groups = configuredGroups();
+                if (groups != null && sslProvider() != SslProvider.JDK) {
+                    b.option(OpenSslContextOption.GROUPS, groups);
+                }
+                return b.build();
             } catch (Exception e) {
                 throw new IllegalStateException(e);
             }
