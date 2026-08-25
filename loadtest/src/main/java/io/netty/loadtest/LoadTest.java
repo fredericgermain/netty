@@ -35,9 +35,11 @@ import io.netty.util.concurrent.Future;
 import org.HdrHistogram.Histogram;
 
 import java.net.InetSocketAddress;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -86,6 +88,7 @@ public final class LoadTest {
                 + "[--port=9999] [--backlog=8192] [--threads=N]");
         System.err.println("  client --transport=... --tls=... [--host=127.0.0.1] [--port=9999]");
         System.err.println("         [--connections=10000] [--duration=15] [--payload=1024] [--threads=N]");
+        System.err.println("         [--rate=N]  total req/s; omit to saturate (throughput only, latency invalid)");
     }
 
     // ------------------------------------------------------------------ server
@@ -151,6 +154,10 @@ public final class LoadTest {
         int connections = a.getInt("connections", 10000);
         int durationSec = a.getInt("duration", 15);
         int payload = a.getInt("payload", 1024);
+        // Total requests/s across all connections. Absent => closed loop: saturate and report
+        // throughput only, because closed-loop latency is queue depth rather than service time.
+        int rate = a.getInt("rate", 0);
+        long intervalNanos = rate == 0 ? 0 : (long) (1e9 * connections / rate);
         String host = a.get("host", "127.0.0.1");
         int port = a.getInt("port", 9999);
 
@@ -194,7 +201,7 @@ public final class LoadTest {
                         ch.pipeline()
                           .addLast(new LengthFieldBasedFrameDecoder(1 << 20, 0, 4, 0, 4))
                           .addLast(new LengthFieldPrepender(4))
-                          .addLast(new RequestLoop(latency, requests, errors, payload));
+                          .addLast(new RequestLoop(latency, requests, errors, payload, intervalNanos));
                     }
                 });
                 ChannelFuture cf = bb.connect(host, port);
@@ -235,8 +242,14 @@ public final class LoadTest {
             latency.reset();
             requests.set(0);
             long steadyStart = System.nanoTime();
+            // Stagger the open-loop tickers across one interval, or 10k connections all fire in
+            // the same millisecond and the load arrives as a spike rather than at the target rate.
+            long stagger = 0;
+            long staggerStep = intervalNanos == 0 || channels.isEmpty()
+                    ? 0 : intervalNanos / channels.size();
             for (Channel ch : channels) {
-                ch.pipeline().get(RequestLoop.class).start(ch);
+                ch.pipeline().get(RequestLoop.class).start(ch, stagger);
+                stagger += staggerStep;
             }
             Thread.sleep(TimeUnit.SECONDS.toMillis(durationSec));
             long steadyNanos = System.nanoTime() - steadyStart;
@@ -247,12 +260,22 @@ public final class LoadTest {
             Thread.sleep(200);
 
             double seconds = steadyNanos / 1e9;
+            double achieved = requests.get() / seconds;
+            // Percentiles from an open-loop run only mean anything if the offered rate was actually
+            // delivered. If the system could not keep up, the histogram holds the backlog, and
+            // quoting that as latency is the same mistake as quoting closed-loop p50.
+            String mode = rate == 0
+                    ? "closed-loop:latency-is-queue-depth"
+                    : achieved >= rate * 0.95
+                        ? "open-loop:target-met"
+                        : String.format("open-loop:TARGET-MISSED-%.0f%%:percentiles-invalid",
+                                        100 * achieved / rate);
             System.out.printf(
-                "STEADY durationS=%.1f requests=%d reqPerSec=%.0f errors=%d "
-                + "p50us=%d p99us=%d p999us=%d maxUs=%d%n",
-                seconds, requests.get(), requests.get() / seconds, errors.get(),
+                "STEADY durationS=%.1f requests=%d reqPerSec=%.0f targetPerSec=%d errors=%d "
+                + "p50us=%d p99us=%d p999us=%d maxUs=%d mode=%s%n",
+                seconds, requests.get(), achieved, rate, errors.get(),
                 latency.getValueAtPercentile(50.0), latency.getValueAtPercentile(99.0),
-                latency.getValueAtPercentile(99.9), latency.getMaxValue());
+                latency.getValueAtPercentile(99.9), latency.getMaxValue(), mode);
             System.out.flush();
         } finally {
             for (Channel ch : channels) {
@@ -263,53 +286,97 @@ public final class LoadTest {
     }
 
     /**
-     * One request in flight per connection: write a frame, wait for it back, record the round trip,
-     * write the next.
+     * Drives one connection, in one of two modes.
+     *
+     * <p><b>Closed loop</b> (no {@code --rate}): one request in flight, send the next as soon as the
+     * previous returns. This saturates the system and measures maximum throughput. Its latency
+     * figures are <em>not</em> service times -- with N connections all pushing, Little's Law fixes
+     * p50 at roughly N/throughput regardless of how fast the stack is, so what they really report is
+     * the queue depth the operator chose. At 10k connections that is tens of milliseconds and means
+     * nothing on its own.
+     *
+     * <p><b>Open loop</b> ({@code --rate}): each connection sends on a fixed schedule derived from
+     * the target rate, independently of whether earlier requests have come back. Latency is measured
+     * from the time a request was <em>due</em> to be sent rather than when it actually went out,
+     * which is what stops a stalled system from hiding its own delay -- the coordinated omission
+     * problem. These percentiles are meaningful, provided the achieved rate actually matched the
+     * target; the caller checks that and says so when it did not.
      */
     static final class RequestLoop extends ChannelInboundHandlerAdapter {
         private final Histogram latency;
         private final AtomicLong requests;
         private final AtomicLong errors;
         private final int payload;
+        private final long intervalNanos;   // 0 => closed loop
         private volatile boolean running;
-        private long sentAt;
+        private long closedLoopSentAt;
+        /** Intended send times, FIFO: the server echoes in order on one connection. */
+        private final ArrayDeque<Long> pending = new ArrayDeque<>();
+        private long nextDue;
+        private ScheduledFuture<?> ticker;
 
-        RequestLoop(Histogram latency, AtomicLong requests, AtomicLong errors, int payload) {
+        RequestLoop(Histogram latency, AtomicLong requests, AtomicLong errors, int payload,
+                    long intervalNanos) {
             this.latency = latency;
             this.requests = requests;
             this.errors = errors;
             this.payload = payload;
+            this.intervalNanos = intervalNanos;
         }
 
-        void start(Channel ch) {
+        void start(Channel ch, long staggerNanos) {
             running = true;
-            ch.eventLoop().execute(() -> send(ch));
+            if (intervalNanos == 0) {
+                ch.eventLoop().execute(() -> sendClosed(ch));
+            } else {
+                nextDue = System.nanoTime() + staggerNanos;
+                ticker = ch.eventLoop().scheduleAtFixedRate(
+                        () -> tick(ch), staggerNanos, intervalNanos, TimeUnit.NANOSECONDS);
+            }
         }
 
         void stop() {
             running = false;
+            if (ticker != null) {
+                ticker.cancel(false);
+            }
         }
 
-        private void send(Channel ch) {
+        private void sendClosed(Channel ch) {
             if (!running || !ch.isActive()) {
                 return;
             }
-            ByteBuf buf = ch.alloc().buffer(payload).writeZero(payload);
-            sentAt = System.nanoTime();
-            ch.writeAndFlush(buf);
+            closedLoopSentAt = System.nanoTime();
+            ch.writeAndFlush(ch.alloc().buffer(payload).writeZero(payload));
+        }
+
+        private void tick(Channel ch) {
+            if (!running || !ch.isActive()) {
+                return;
+            }
+            // Record the time this request was DUE, not now. If the event loop is behind, that
+            // lateness belongs in the latency figure rather than being quietly discarded.
+            long due = nextDue;
+            nextDue += intervalNanos;
+            pending.addLast(due);
+            ch.writeAndFlush(ch.alloc().buffer(payload).writeZero(payload));
         }
 
         @Override public void channelRead(ChannelHandlerContext ctx, Object msg) {
             ((ByteBuf) msg).release();
-            long us = TimeUnit.NANOSECONDS.toMicros(System.nanoTime() - sentAt);
-            // Histogram is not thread safe, but each connection is pinned to one event loop thread
-            // and recordValue on a shared instance from several threads can lose counts. Synchronise
-            // on it: at these rates the contention is far cheaper than getting the percentiles wrong.
+            long now = System.nanoTime();
+            long from = intervalNanos == 0 ? closedLoopSentAt
+                                           : (pending.isEmpty() ? now : pending.pollFirst());
+            long us = TimeUnit.NANOSECONDS.toMicros(now - from);
+            // The histogram is shared across event loop threads and is not thread safe; a lost
+            // count here would quietly bias the percentiles, so take the lock.
             synchronized (latency) {
                 latency.recordValue(Math.max(1, us));
             }
             requests.incrementAndGet();
-            send(ctx.channel());
+            if (intervalNanos == 0) {
+                sendClosed(ctx.channel());
+            }
         }
 
         @Override public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
