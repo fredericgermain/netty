@@ -89,6 +89,8 @@ public final class LoadTest {
         System.err.println("  client --transport=... --tls=... [--host=127.0.0.1] [--port=9999]");
         System.err.println("         [--connections=10000] [--duration=15] [--payload=1024] [--threads=N]");
         System.err.println("         [--rate=N]  total req/s; omit to saturate (throughput only, latency invalid)");
+        System.err.println("  --ring-size=N   io_uring ring entries, default 16384. Netty's own default of 4096");
+        System.err.println("                  overflows at 10k connections and costs ~292x throughput.");
     }
 
     // ------------------------------------------------------------------ server
@@ -98,8 +100,9 @@ public final class LoadTest {
         t.ensureAvailable();
         SslContext ssl = Tls.serverContext(a.get("tls", "none"));
 
-        EventLoopGroup boss = new MultiThreadIoEventLoopGroup(1, t.ioHandler());
-        EventLoopGroup worker = new MultiThreadIoEventLoopGroup(a.threads(), t.ioHandler());
+        int ringSize = a.getInt("ring-size", 16384);
+        EventLoopGroup boss = new MultiThreadIoEventLoopGroup(1, t.ioHandler(ringSize));
+        EventLoopGroup worker = new MultiThreadIoEventLoopGroup(a.threads(), t.ioHandler(ringSize));
         try {
             ServerBootstrap b = new ServerBootstrap()
                     .group(boss, worker)
@@ -125,7 +128,8 @@ public final class LoadTest {
             Channel ch = b.bind(new InetSocketAddress(a.get("host", "0.0.0.0"), a.getInt("port", 9999)))
                           .sync().channel();
             System.out.println("READY transport=" + t + " tls=" + a.get("tls", "none")
-                    + " backlog=" + a.getInt("backlog", 8192) + " threads=" + a.threads());
+                    + " backlog=" + a.getInt("backlog", 8192) + " threads=" + a.threads()
+                    + " ringSize=" + ringSize);
             System.out.flush();
             ch.closeFuture().sync();
         } finally {
@@ -161,7 +165,7 @@ public final class LoadTest {
         String host = a.get("host", "127.0.0.1");
         int port = a.getInt("port", 9999);
 
-        EventLoopGroup group = new MultiThreadIoEventLoopGroup(a.threads(), t.ioHandler());
+        EventLoopGroup group = new MultiThreadIoEventLoopGroup(a.threads(), t.ioHandler(a.getInt("ring-size", 16384)));
         // Recorded across every connection. Values are microseconds; three significant digits is
         // plenty for percentiles and keeps the histogram small enough to be free.
         Histogram latency = new Histogram(1, TimeUnit.SECONDS.toMicros(60), 3);
