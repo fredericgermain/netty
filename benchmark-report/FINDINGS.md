@@ -126,8 +126,29 @@ against 1111.29 +/- 28.23 on musl, while `boringssl-static` OPENSSL is 804.15 +/
 796.70 +/- 13.93. On TLS 1.3 the openssl-dynamic gap is 1061.07 (glibc) against 1240.62 (musl),
 which is +17%, and 1298.15 on amazoncorretto, which is +22%.
 
-**[UNCERTAIN]** The *mechanism* (runtime resolution of the distro libssl versus compiled-in crypto)
-is inferred and was never directly instrumented. The write-up should say so.
+**[UNCERTAIN] The mechanism is inferred**, never directly instrumented.
+
+**[UNCERTAIN] And there is a confound that has to be disclosed.** The three images do not carry the
+same OpenSSL. Recovered from the JMH records:
+
+| image | libc | OpenSSL | JDK |
+|---|---|---|---|
+| eclipse-temurin:21-jdk | glibc | **3.5.5** (27 Jan 2026) | 21.0.12 |
+| eclipse-temurin:21-jdk-alpine | musl | **3.5.7** (9 Jun 2026) | 21.0.11 |
+| amazoncorretto:21-alpine | musl | **3.5.7** | 21.0.12 |
+
+libc and OpenSSL version are **perfectly confounded**: every musl image has 3.5.7 and the only glibc
+image has 3.5.5. So "openssl-dynamic is 12% slower on musl" could equally be "openssl-dynamic 3.5.7
+is 12% slower than 3.5.5 on this workload", and this data cannot separate them.
+
+What survives cleanly is the more important half of the claim: **`boringssl-static` shows no libc
+effect at all** (804.15 glibc against 796.70 musl), and BoringSSL is compiled in, so it has no
+version to vary. The "musl is not inherently slower" conclusion holds. The "and it is
+openssl-dynamic's fault" conclusion needs the same OpenSSL build on both libcs before it is
+published.
+
+JDK version is controlled by accident and can be ruled out: the two musl images differ in JDK
+(21.0.11 and 21.0.12) and agree with each other (1111.29 and 1115.28).
 
 ## The JDK TLS provider is about twice as slow as tcnative, on every image
 
@@ -210,6 +231,42 @@ exactly a deficit that widens with message size.
 Raising the receive buffer recovers about a third of the gap (42% to 58% of epoll) with one channel
 option.
 
+## What actually fixes it: two flags, stacked
+
+**[SOLID]** 5 rounds, 64 KB, 2000 connections, corrected pinning. This is the largest remediation on
+the branch and it was sitting unread in a log file.
+
+| cell | rounds | median | note |
+|---|---|---|---|
+| epoll, default | 35,904 - 41,815 | 41,310 | |
+| io_uring, default | 17,538 - 18,701 | 17,850 | 43.2% of epoll |
+| io_uring, `rcvbuf-max=512K` | 20,666 - 23,941 | 23,561 | +32% |
+| epoll, both flags | 38,821 - 41,147 | 39,816 | **-3.6%** |
+| io_uring, both flags | 27,595 - 28,775 | 28,687 | **+60.7%** |
+
+"Both flags" is `--rcvbuf-max=512K` together with a 1 MB
+`io.netty.allocator.maxCachedBufferCapacity`. The two levers are near-additive (+32% and +14.9%
+separately, +60.7% together) and they take io_uring from 43.2% of epoll to **72.0%** measured
+like-for-like, or 69.4% against untuned epoll.
+
+**The same flags do nothing for epoll**, which moves -3.6%. That asymmetry is the point: this is not
+general tuning, it is specifically undoing a cost that only the completion-based transport pays.
+
+Why they compound: raising the receive buffer to 512 KB cuts reads per message to one, but a 512 KB
+buffer is far above the 32 KB default thread-cache ceiling, so every one of those buffers bypasses
+the cache and goes to the arena. Raising the ceiling to 1 MB lets them be cached again. Each lever
+alone leaves the other bottleneck in place.
+
+**Cost: memory.** The io_uring server's pool runs 96-332 MB with both flags against 16-220 MB
+without. Roughly a 50% increase in peak pooled direct memory for a 61% throughput gain, which is a
+trade worth stating explicitly rather than presenting the speedup alone.
+
+This also corrects something I published earlier. I wrote that the cache ceiling "is not the fix"
+because raising it alone helped epoll more than io_uring. That was measured at 256 KB ceiling
+*without* raising the receive buffer, and it is true in isolation. Stacked with the receive buffer it
+is half of the largest win on the branch. **A lever tested alone can look useless when it is one of a
+pair.**
+
 ## The six hypotheses that were wrong, in order
 
 This list is the actual article. Every one was plausible, most were expensive to hold, and each was
@@ -259,7 +316,7 @@ alone, and the two do not add **[SOLID]**:
 **[WITHDRAWN]** *"io_uring saves 17% of server kernel time."* With the client held at epoll so the
 server is measured in isolation, the io_uring server uses **more** kernel time per request: 21.5 us
 against 15.6. The 12.80 us figure I had published came from one sample at the low end of a spread
-running 12.6 to 22.4.
+running 12.53 to 21.34.
 
 Both errors have the same shape: reading a per-request CPU figure from a single *paired* run as if it
 were a property of one side. Only holding one side fixed can attribute cost to a side.
@@ -289,11 +346,20 @@ logged per round:
 
 | | rounds | median |
 |---|---|---|
-| io_uring, TLS, 1 KB, 10k connections | 84,074 - 115,974 | **107,719** |
+| io_uring, TLS, 1 KB, 10k connections | 84,074 - 115,974 | **110,585** |
 | epoll, TLS, 1 KB, 10k connections | 72,755 - 97,351 | 94,681 |
 
-io_uring is about 14% faster, with 9 of 10 rounds above epoll's median. Frequency sat at 3.2 GHz and
-temperature at 71-76 C throughout, so this is not thermal drift.
+io_uring is **+16.8%** faster, with 9 of 10 rounds above epoll's median.
+
+Two corrections to what I first wrote here, both found by re-reading `tlswarm.log`:
+
+- The io_uring median was reported as 107,719 from an off-by-one in the median index. It is 110,585,
+  so the advantage is 16.8% rather than 14%.
+- I wrote that frequency sat at 3.2 GHz and temperature at 71-76 C "throughout". **That is false.**
+  The real range is 67-88 C, with `ur-02` at 3.60 GHz / 88 C and `ep-01` at 3.50 GHz / 83 C. Those
+  excursions land on the first round of each block, which is exactly the machine-state evidence this
+  test existed to collect. Quoting the narrow range would have deleted the most interesting thing in
+  the data.
 
 Consistent with the read-count mechanism: TLS at 1 KB is crypto-dominated, so per-read transport
 overhead is a much smaller share of the total and io_uring's batching across ten thousand connections
@@ -306,8 +372,12 @@ interleaved before publishing.
 
 **[WITHDRAWN]** An earlier run showed io_uring's TLS throughput climbing across five fresh JVMs
 (70,442 then 82,764, 111,042, 115,721, 115,189) and I treated it as a real warm-up effect that
-blocked any TLS claim. It does not reproduce: in the ten-round run, round 1 is the highest of the
-ten. That was machine state in one run.
+blocked any TLS claim. It does not reproduce: rounds 1 and 2 of the ten-round run are 115,260 and
+115,974, at the top of the whole distribution rather than the bottom. That was machine state in one
+run.
+
+**[UNCERTAIN]** I also wrote "round 1 is the highest of the ten", which is wrong: round 2 is higher.
+The conclusion survives, the supporting sentence did not.
 
 ## An instrument caveat that outlived the experiment
 
