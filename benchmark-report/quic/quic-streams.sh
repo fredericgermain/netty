@@ -25,11 +25,12 @@ LOOPS=500      # request loops, held equal across both cells
 require_idle || exit 1
 
 echo "# q3 quic streams-per-connection  rounds=$ROUNDS duration=${DUR}s loops=$LOOPS payload=$PAYLOAD"
-printf 'round\tcell\tconns\tstreams\tconnPerSec\trampMs\treqPerSec\tp50us\tp99us\tp999us\terrors\tudpRcvbufErrDelta\tmhzMin\tmhzMax\tmhzMean\ttempMaxC\tthrottleDelta\n'
+printf 'round\tcell\tconns\tstreams\tconnPerSec\trampMs\treqPerSec\tp50us\tp99us\tp999us\terrors\tudpRcvbufErrDelta\t'"$ENV_HEADER"'\n'
 
 cell() {   # cell <round> <connections> <streams-per-conn>
   local round=$1 conns=$2 streams=$3
   local port srv before after
+  await_quiet || { echo "# ABORT: host never went quiet" >&2; return 1; }
   port=$(free_port) || return 1
 
   before=$(udp_counters)

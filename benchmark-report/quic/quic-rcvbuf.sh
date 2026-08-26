@@ -30,12 +30,14 @@ BUFS="212992 4194304 16777216"
 require_idle || exit 1
 
 echo "# q4 quic udp receive buffer sweep  rounds=$ROUNDS duration=${DUR}s connections=$CONNS payload=$PAYLOAD"
-echo "# rmem_max=$(cat /proc/sys/net/core/rmem_max) rmem_default=$(cat /proc/sys/net/core/rmem_default)"
-printf 'round\trcvbuf\tactual\tconnPerSec\treqPerSec\tp50us\tp99us\tp999us\terrors\tudpRcvbufErrDelta\tudpInErrDelta\tmhzMin\tmhzMax\tmhzMean\ttempMaxC\tthrottleDelta\n'
+echo "# image=$IMG"
+host_header
+printf 'round\trcvbuf\tactual\tconnPerSec\treqPerSec\tp50us\tp99us\tp999us\terrors\tudpRcvbufErrDelta\tudpInErrDelta\t'"$ENV_HEADER"'\n'
 
 cell() {   # cell <round> <rcvbuf-bytes>
   local round=$1 buf=$2
   local port srv before after
+  await_quiet || { echo "# ABORT: host never went quiet" >&2; return 1; }
   port=$(free_port) || return 1
 
   before=$(udp_counters)

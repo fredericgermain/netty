@@ -33,12 +33,14 @@ UDP_RCVBUF="${UDP_RCVBUF:-}"
 require_idle || exit 1
 
 echo "# q1 quic-vs-tcp+tls  rounds=$ROUNDS duration=${DUR}s connections=$CONNS threads=$THREADS udpRcvbuf=${UDP_RCVBUF:-default4MB} payloads=$PAYLOADS"
-echo "# image=$IMG rmem_max=$(cat /proc/sys/net/core/rmem_max) wmem_max=$(cat /proc/sys/net/core/wmem_max)"
-printf 'round\tpayload\tcell\tconnPerSec\trampMs\treqPerSec\tp50us\tp99us\tp999us\terrors\tudpRcvbufErrDelta\tudpInErrDelta\tmhzMin\tmhzMax\tmhzMean\ttempMaxC\tthrottleDelta\n'
+echo "# image=$IMG"
+host_header
+printf 'round\tpayload\tcell\tconnPerSec\trampMs\treqPerSec\tp50us\tp99us\tp999us\terrors\tudpRcvbufErrDelta\tudpInErrDelta\t'"$ENV_HEADER"'\n'
 
 cell() {   # cell <round> <payload> <quic|tcp>
   local round=$1 payload=$2 proto=$3
   local port srv before after
+  await_quiet || { echo "# ABORT: host never went quiet" >&2; return 1; }
   port=$(free_port) || return 1
 
   local srv_args cli_args
