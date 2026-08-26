@@ -19,14 +19,17 @@ import io.netty.channel.Channel;
 import io.netty.channel.IoHandlerFactory;
 import io.netty.channel.ServerChannel;
 import io.netty.channel.epoll.Epoll;
+import io.netty.channel.epoll.EpollDatagramChannel;
 import io.netty.channel.epoll.EpollIoHandler;
 import io.netty.channel.epoll.EpollServerSocketChannel;
 import io.netty.channel.epoll.EpollSocketChannel;
 import io.netty.channel.nio.NioIoHandler;
+import io.netty.channel.socket.nio.NioDatagramChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.channel.uring.IoUring;
 import io.netty.channel.uring.IoUringBufferRingConfig;
+import io.netty.channel.uring.IoUringDatagramChannel;
 import io.netty.channel.uring.IoUringFixedBufferRingAllocator;
 import io.netty.channel.uring.IoUringIoHandler;
 import io.netty.channel.uring.IoUringIoHandlerConfig;
@@ -45,12 +48,21 @@ public enum Transports {
         @Override public IoHandlerFactory ioHandler(int ringSize, int bufferRingEntries, int bufferSize) { return NioIoHandler.newFactory(); }
         @Override public Class<? extends ServerChannel> serverChannel() { return NioServerSocketChannel.class; }
         @Override public Class<? extends Channel> clientChannel() { return NioSocketChannel.class; }
+        @Override public Class<? extends Channel> datagramChannel() { return NioDatagramChannel.class; }
+        // NioDatagramChannelConfig does not know SO_REUSEPORT: java.nio only exposes it as an
+        // ExtendedSocketOption and netty's NIO datagram config never reads it. Setting it anyway
+        // gets a "Unknown channel option" warning from Bootstrap and is then ignored, which is the
+        // exact silent-fallback shape this harness refuses everywhere else, so it is declared here
+        // and checked before the bind rather than discovered from a log line.
+        @Override public boolean supportsReusePort() { return false; }
         @Override public void ensureAvailable() { /* always */ }
     },
     EPOLL {
         @Override public IoHandlerFactory ioHandler(int ringSize, int bufferRingEntries, int bufferSize) { return EpollIoHandler.newFactory(); }
         @Override public Class<? extends ServerChannel> serverChannel() { return EpollServerSocketChannel.class; }
         @Override public Class<? extends Channel> clientChannel() { return EpollSocketChannel.class; }
+        @Override public Class<? extends Channel> datagramChannel() { return EpollDatagramChannel.class; }
+        @Override public boolean supportsReusePort() { return true; }
         @Override public void ensureAvailable() {
             if (!Epoll.isAvailable()) {
                 throw new IllegalStateException("epoll is not available", Epoll.unavailabilityCause());
@@ -101,6 +113,8 @@ public enum Transports {
         }
         @Override public Class<? extends ServerChannel> serverChannel() { return IoUringServerSocketChannel.class; }
         @Override public Class<? extends Channel> clientChannel() { return IoUringSocketChannel.class; }
+        @Override public Class<? extends Channel> datagramChannel() { return IoUringDatagramChannel.class; }
+        @Override public boolean supportsReusePort() { return true; }
         @Override public void ensureAvailable() {
             if (!IoUring.isAvailable()) {
                 throw new IllegalStateException("io_uring is not available", IoUring.unavailabilityCause());
@@ -117,6 +131,22 @@ public enum Transports {
     public abstract IoHandlerFactory ioHandler(int ringSize, int bufferRingEntries, int bufferSize);
     public abstract Class<? extends ServerChannel> serverChannel();
     public abstract Class<? extends Channel> clientChannel();
+
+    /** The UDP socket QUIC runs over. QUIC's codec is a handler on a datagram channel. */
+    public abstract Class<? extends Channel> datagramChannel();
+
+    /**
+     * Whether several datagram channels of this transport can share one port.
+     *
+     * <p>A QUIC server has no accept: every connection arrives on the same UDP socket, so one
+     * socket means one event loop thread handling every connection on the machine. The only way to
+     * spread a QUIC server across cores is to bind the port several times with SO_REUSEPORT and let
+     * the kernel's 4-tuple hash pick the socket. A transport that cannot do that is structurally
+     * single-threaded for QUIC, which is a fact about the transport worth reporting rather than
+     * hiding behind a lower number.
+     */
+    public abstract boolean supportsReusePort();
+
     public abstract void ensureAvailable();
 
     public static Transports parse(String s) {

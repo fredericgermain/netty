@@ -1,0 +1,26 @@
+== host
+6.8.0-57-generic
+rmem_max=50000000 rmem_default=212992
+wmem_max=1048576 wmem_default=212992
+# host idle, cpu idle 100%, throttleCounts(c0-c3)=0 9113 0 22805 
+== port 19990
+== udp before: InDatagrams=4442306 NoPorts=1835 InErrors=25 OutDatagrams=3112099 RcvbufErrors=25 SndbufErrors=0 InCsumErrors=0 IgnoredMulti=131280 MemErrors=0 
+== server cid a87a528ef33348b8302065d1ab966c27fd4320a4e8e2f84d7f0124a6203ee8ea
+READY protocol=quic transport=EPOLL tls=quic-tls13 quicAvailable=true sockets=4 reusePort=true threads=4 payload=1024 prealloc=false jvmTuned=false alpn=netty-loadtest quicMtu=1200 quicCc=cubic connWindowMb=16 streamWindowMb=4 idleMs=30000 gso=0 udpRcvbufAsked=4194304 udpRcvbufActual=8388608 udpSndbufAsked=1048576 udpSndbufActual=2097152 udpRecvSize=2048 leakDetection=simple usedDirectMb=0 pooledChunks=0
+== reuseport check (expect 4 sockets on :19990)
+4
+== client
+CLIENTCFG protocol=quic transport=EPOLL tls=quic-tls13 quicAvailable=true connections=500 streamsPerConn=1 payload=1024 threads=4 rate=0 prealloc=false jvmTuned=false alpn=netty-loadtest quicMtu=1200 quicCc=cubic connWindowMb=16 streamWindowMb=4 idleMs=30000 gso=0 leakDetection=simple usedDirectMb=0 pooledChunks=0
+RAMP  connections=500 established=500 errors=0 wallMs=785 connPerSec=636 usedDirectMb=16 pooledChunks=4
+QUICRAMP streamsRequested=500 streamsOpen=500 streamsPerConn=1 udpRcvbufAsked=4194304 udpRcvbufActual=8388608 udpSndbufAsked=1048576 udpSndbufActual=2097152 udpRecvSize=2048
+STEADY durationS=10.0 requests=570154 reqPerSec=56989 targetPerSec=0 errors=0 p50us=6987 p99us=32639 p999us=65151 maxUs=119103 mode=closed-loop:latency-is-queue-depth utimeUsPerReq=48.99 stimeUsPerReq=17.84 allocBytesPerReq=876.4 allocAllBytesPerReq=877.9 poolBefore=[usedDirectMb=16 pooledChunks=4] poolAfter=[usedDirectMb=16 pooledChunks=4]
+CLIENTCPU utimeMs=27930 stimeMs=10170 gcCount=4 gcMs=25 volCtxt=18312 involCtxt=4737 allocLoopKb=487954 allocAllKb=488801 utimeUsPerReq=48.99 stimeUsPerReq=17.84 allocBytesPerReq=876.4 allocAllBytesPerReq=877.9
+== clock during the measured window
+mhzMin=800 mhzMax=4500 mhzMean=2707 tempMaxC=68.0 throttleDelta(c0/c1/c2/c3)=0/0/0/0
+== udp after: InDatagrams=5588839 NoPorts=1835 InErrors=25 OutDatagrams=4259075 RcvbufErrors=25 SndbufErrors=0 InCsumErrors=0 IgnoredMulti=131280 MemErrors=0 
+== RcvbufErrors delta: 0
+== InErrors delta:     0
+== server tail
+SERVERCPU tMs=1787773894001 requests=570154 utimeMs=33500 stimeMs=10660 gcCount=4 gcMs=19 volCtxt=7160 involCtxt=5427 allocLoopKb=502271 allocAllKb=530961 usedDirectMb=16 pooledChunks=4
+SERVERCPU tMs=1787773896002 requests=570154 utimeMs=33930 stimeMs=10670 gcCount=4 gcMs=19 volCtxt=7229 involCtxt=5423 allocLoopKb=503099 allocAllKb=531788 usedDirectMb=16 pooledChunks=4
+SMOKE_DONE
