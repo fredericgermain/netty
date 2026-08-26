@@ -32,6 +32,10 @@
     <netty.version>4.2.18.Final-SNAPSHOT</netty.version>
     <!-- linux-x86_64 or linux-aarch_64; must match the host the test runs on. -->
     <native.classifier>linux-x86_64</native.classifier>
+    <!-- Separate from native.classifier only so a QUIC-only smoke test can be built for a
+         developer machine (osx-aarch_64) while the epoll and io_uring jars stay on their Linux
+         classifier. Every measured run leaves this at the default. -->
+    <quic.classifier>${native.classifier}</quic.classifier>
     <tcnative.artifactId>netty-tcnative-boringssl-static</tcnative.artifactId>
     <tcnative.version>2.0.82.Final-SNAPSHOT</tcnative.version>
   </properties>
@@ -67,6 +71,15 @@
       <groupId>io.netty</groupId>
       <artifactId>netty-pkitesting</artifactId>
       <version>${netty.version}</version>
+    </dependency>
+    <!-- QUIC. The native artifact carries quiche and BoringSSL and pulls netty-codec-classes-quic
+         with it. Released builds of this do not load on Alpine, which is why every QUIC cell here
+         runs on a glibc image. -->
+    <dependency>
+      <groupId>io.netty</groupId>
+      <artifactId>netty-codec-native-quic</artifactId>
+      <version>${netty.version}</version>
+      <classifier>${quic.classifier}</classifier>
     </dependency>
     <dependency>
       <groupId>io.netty</groupId>

@@ -24,6 +24,9 @@ import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import io.netty.pkitesting.CertificateBuilder;
 import io.netty.pkitesting.X509Bundle;
 
+import java.security.PrivateKey;
+import java.security.cert.X509Certificate;
+
 /**
  * TLS contexts for the load test, and the assertions that keep a run honest.
  *
@@ -49,6 +52,22 @@ final class Tls {
     }
 
     private Tls() { }
+
+    /**
+     * The same in-process certificate the TCP cells use, for QUIC's own context builder.
+     *
+     * <p>QUIC's TLS stack is BoringSSL inside quiche and takes a {@code QuicSslContext} rather than
+     * an {@code SslContext}, so it cannot reuse the contexts above. It can and does reuse the key
+     * material, which is what keeps "QUIC against TCP+TLS" from also being "one certificate against
+     * another".
+     */
+    static PrivateKey privateKey() {
+        return CERT.getKeyPair().getPrivate();
+    }
+
+    static X509Certificate[] certificateChain() {
+        return CERT.getCertificatePath();
+    }
 
     static SslContext serverContext(String mode) throws Exception {
         if ("none".equals(mode)) {

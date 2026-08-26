@@ -55,6 +55,70 @@ A benchmark that silently measures something else is worse than one that fails.
   free, and bound the client with `timeout`.
 - 10k connections is ~20k descriptors per side: `--ulimit nofile=65536:65536`.
 
+## QUIC: `--protocol=quic`
+
+Same two phases, same `RAMP` / `STEADY` / `CLIENTCPU` / `SERVERCPU` lines, same `RequestLoop`, same
+4-byte length prefix on the wire. A QUIC stream is a byte stream, so it needs framing for the same
+reason TCP does, and sharing the code is what lets a QUIC table and a TCP table be read side by
+side. The implementation is `QuicLoad.java`; `LoadTest.steady()` and `LoadTest.ramp()` are shared
+rather than copied.
+
+`--tls` is ignored: QUIC is TLS 1.3 or nothing. Compare it against `--tls=openssl`, never against
+plaintext, or the delta is AES and not transport.
+
+**Run QUIC on a glibc image.** The released `netty-codec-native-quic` does not load on Alpine --
+that is the whole subject of the `quic-musl-compat` branch -- so every QUIC cell here uses
+`eclipse-temurin:21-jdk`. Mixing that question into this one would make both unanswerable.
+
+### Three shape differences that are not tuning knobs
+
+**A QUIC server has no accept.** Every connection arrives as datagrams on one UDP socket, so one
+socket is one event loop thread for the whole machine no matter how many loops exist. The only fix
+is `SO_REUSEPORT`: `--quic-server-sockets=N` binds the port N times and the kernel's 4-tuple hash
+picks the socket. **Netty's NIO datagram channel cannot do this** -- `NioDatagramChannelConfig` does
+not know the option, and `Bootstrap` logs "Unknown channel option" and carries on -- so a NIO QUIC
+server is structurally capped at one core. `--quic-server-sockets>1` on NIO aborts rather than
+quietly running single-socket.
+
+**No `QuicCodecDispatcher`.** It exists to re-route a packet the kernel delivered to the wrong
+socket, which happens when a client migrates. Migration is pinned off and every client socket stays
+bound for the run, so the kernel's hash is a stable router and the dispatcher's cross-event-loop
+`fireChannelRead` is avoided.
+
+**One UDP socket per QUIC connection on the client.** Multiplexing every connection over one socket
+would put the whole run on one event loop thread and turn a comparison against N TCP sockets into a
+comparison against 1.
+
+### UDP buffers, which is where a QUIC benchmark goes wrong silently
+
+An undersized UDP receive buffer is not an error. The kernel drops the datagram, quiche retransmits,
+and the run reports itself as slow QUIC. So `--udp-rcvbuf` (default 4 MB) and `--udp-sndbuf`
+(default 1 MB) are set explicitly and the READY line prints what the kernel actually applied next to
+what was asked for. Linux returns double the request -- half is its own bookkeeping allowance -- and
+clamps silently at `net.core.rmem_max` / `net.core.wmem_max`. On the test host those are 50,000,000
+and **1,048,576**, so a send buffer request above 1 MB is clamped and the "actual" is the only
+number worth reading.
+
+Read `RcvbufErrors` out of `/proc/net/snmp` around every cell. Zero drops is a precondition for the
+throughput figure meaning anything, not a bonus check.
+
+`--udp-recv-size` bounds the per-datagram receive buffer. A datagram channel reads one datagram into
+one buffer and the kernel discards the rest, so a receive size below the peer's maximum datagram
+truncates packets rather than splitting them. It is derived from `--quic-mtu`.
+
+### The knobs, and their defaults
+
+| flag | default | why that default |
+|---|---|---|
+| `--connections` | 500 | a QUIC handshake is far dearer than a TCP+TLS one; 10,000 would make the ramp the whole run |
+| `--quic-server-sockets` | `--threads` | one socket per server event loop, via SO_REUSEPORT |
+| `--quic-streams` | 1 | one stream per connection is the honest analogue of one TCP connection |
+| `--quic-mtu` | 1200 | the internet-safe datagram size a real deployment sends; loopback would otherwise tempt a run into a size no path carries |
+| `--quic-cc` | cubic | quiche's own default |
+| `--quic-flow-mb` | 16 | connection flow-control window, far above one request in flight |
+| `--quic-stream-flow-mb` | 4 | stream window; a window near the payload adds a round trip per request and reports it as latency |
+| `--quic-gso` | 0 | UDP segmentation offload, epoll only; aborts if the kernel lacks `UDP_SEGMENT` |
+
 ## What it has measured
 
 x86_64, 8 cores, client and server pinned to disjoint 4-core sets, five interleaved rounds.

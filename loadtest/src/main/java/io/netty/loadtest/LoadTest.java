@@ -95,9 +95,14 @@ public final class LoadTest {
             System.exit(2);
         }
         Args a = Args.parse(args);
+        String protocol = a.get("protocol", "tcp");
+        boolean quic = "quic".equals(protocol);
+        if (!quic && !"tcp".equals(protocol)) {
+            throw new IllegalArgumentException("--protocol must be tcp or quic, got: " + protocol);
+        }
         switch (args[0]) {
-            case "server": server(a); break;
-            case "client": client(a); break;
+            case "server": if (quic) { QuicLoad.server(a); } else { server(a); } break;
+            case "client": if (quic) { QuicLoad.client(a); } else { client(a); } break;
             default: usage(); System.exit(2);
         }
     }
@@ -118,6 +123,10 @@ public final class LoadTest {
         System.err.println("                  exclusive with --rcvbuf-max.");
         System.err.println("  --jvm-tuned     assert the JVM was started with -Xms==-Xmx, +AlwaysPreTouch and an");
         System.err.println("                  explicit -XX:MaxDirectMemorySize; abort if it was not.");
+        System.err.println("  --protocol=tcp|quic  quic runs the same two phases over QUIC. TLS 1.3 is then");
+        System.err.println("                  mandatory and --tls is ignored. See QuicLoad for its own flags:");
+        System.err.println("                  --quic-server-sockets, --quic-streams, --udp-rcvbuf, --udp-sndbuf,");
+        System.err.println("                  --quic-mtu, --quic-gso, --quic-cc, --quic-flow-mb.");
     }
 
     // ------------------------------------------------------------------ server
@@ -126,6 +135,7 @@ public final class LoadTest {
         Transports t = a.transport();
         t.ensureAvailable();
         final boolean prealloc = a.flag("prealloc");
+        final boolean raw = a.flag("raw");
         if (a.flag("jvm-tuned")) {
             Prealloc.requireTunedJvm();
         }
@@ -157,15 +167,24 @@ public final class LoadTest {
                             if (ssl != null) {
                                 ch.pipeline().addLast(ssl.newHandler(ch.alloc()));
                             }
-                            // With --prealloc the length header is not stripped and not re-added:
-                            // the frame goes back out exactly as it arrived, which deletes
-                            // LengthFieldPrepender's per-write header allocation and its second
-                            // outbound message. The bytes on the wire are the same either way.
-                            ch.pipeline().addLast(prealloc
-                                    ? new LengthFieldBasedFrameDecoder(1 << 20, 0, 4, 0, 0)
-                                    : new LengthFieldBasedFrameDecoder(1 << 20, 0, 4, 0, 4));
-                            if (!prealloc) {
-                                ch.pipeline().addLast(new LengthFieldPrepender(4));
+                            // --raw drops framing entirely so the pipeline is one handler echoing
+                            // whatever a read produced. It exists to let an external load
+                            // generator that speaks no framing protocol drive this server, and to
+                            // make the work per request the same as a plain C echo server's, so
+                            // the two can be read on the same axes. Off by default: every existing
+                            // script depends on the length-prefixed protocol.
+                            if (!raw) {
+                                // With --prealloc the length header is not stripped and not
+                                // re-added: the frame goes back out exactly as it arrived, which
+                                // deletes LengthFieldPrepender's per-write header allocation and
+                                // its second outbound message. The bytes on the wire are the same
+                                // either way.
+                                ch.pipeline().addLast(prealloc
+                                        ? new LengthFieldBasedFrameDecoder(1 << 20, 0, 4, 0, 0)
+                                        : new LengthFieldBasedFrameDecoder(1 << 20, 0, 4, 0, 4));
+                                if (!prealloc) {
+                                    ch.pipeline().addLast(new LengthFieldPrepender(4));
+                                }
                             }
                             ch.pipeline().addLast(new EchoHandler(prealloc));
                         }
@@ -192,7 +211,7 @@ public final class LoadTest {
                     + (bufRing > 0 ? " bufferSize=" + bufSize : "")
                     + " sndbuf=" + a.getInt("sndbuf", 0)
                     + " rcvbufMax=" + a.getInt("rcvbuf-max", 0)
-                    + " prealloc=" + prealloc + " jvmTuned=" + a.flag("jvm-tuned")
+                    + " raw=" + raw + " prealloc=" + prealloc + " jvmTuned=" + a.flag("jvm-tuned")
                     + " " + recvAlloc + " " + warm
                     + " leakDetection=" + Prealloc.leakDetection()
                     + " " + Prealloc.poolState());
@@ -355,79 +374,103 @@ public final class LoadTest {
                 }
             }
 
-            System.out.printf("RAMP  connections=%d established=%d errors=%d wallMs=%d connPerSec=%.0f "
-                            + "%s%n",
-                    connections, channels.size(), errors.get(),
-                    TimeUnit.NANOSECONDS.toMillis(rampNanos),
-                    channels.size() / (rampNanos / 1e9), Prealloc.poolState());
-            System.out.flush();
+            ramp(connections, channels.size(), errors.get(), rampNanos);
 
             // ---------------- steady
-            latency.reset();
-            if (prealloc) {
-                for (Histogram h : perLoop.values()) {
-                    h.reset();
-                }
-            }
-            requests.set(0);
-            Counters before = Counters.snapshot();
-            String poolBefore = Prealloc.poolState();
-            long steadyStart = System.nanoTime();
-            // Stagger the open-loop tickers across one interval, or 10k connections all fire in
-            // the same millisecond and the load arrives as a spike rather than at the target rate.
-            long stagger = 0;
-            long staggerStep = intervalNanos == 0 || channels.isEmpty()
-                    ? 0 : intervalNanos / channels.size();
-            for (Channel ch : channels) {
-                ch.pipeline().get(RequestLoop.class).start(ch, stagger);
-                stagger += staggerStep;
-            }
-            Thread.sleep(TimeUnit.SECONDS.toMillis(durationSec));
-            long steadyNanos = System.nanoTime() - steadyStart;
-            // Read the counters at the end of the measured window rather than after the drain, so
-            // the 200 ms quiet period below is not counted as allocation-free time.
-            Counters delta = Counters.snapshot().since(before);
-            String poolAfter = Prealloc.poolState();
-            for (Channel ch : channels) {
-                ch.pipeline().get(RequestLoop.class).stop();
-            }
-            // Let anything in flight land before reading the histogram.
-            Thread.sleep(200);
-
-            if (prealloc) {
-                for (Histogram h : perLoop.values()) {
-                    latency.add(h);
-                }
-            }
-            double seconds = steadyNanos / 1e9;
-            double achieved = requests.get() / seconds;
-            // Percentiles from an open-loop run only mean anything if the offered rate was actually
-            // delivered. If the system could not keep up, the histogram holds the backlog, and
-            // quoting that as latency is the same mistake as quoting closed-loop p50.
-            String mode = rate == 0
-                    ? "closed-loop:latency-is-queue-depth"
-                    : achieved >= rate * 0.95
-                        ? "open-loop:target-met"
-                        : String.format("open-loop:TARGET-MISSED-%.0f%%:percentiles-invalid",
-                                        100 * achieved / rate);
-            System.out.printf(
-                "STEADY durationS=%.1f requests=%d reqPerSec=%.0f targetPerSec=%d errors=%d "
-                + "p50us=%d p99us=%d p999us=%d maxUs=%d mode=%s %s poolBefore=[%s] poolAfter=[%s]%n",
-                seconds, requests.get(), achieved, rate, errors.get(),
-                latency.getValueAtPercentile(50.0), latency.getValueAtPercentile(99.0),
-                latency.getValueAtPercentile(99.9), latency.getMaxValue(), mode,
-                delta.perRequest(requests.get()), poolBefore, poolAfter);
-            // Where the client spent itself. The server prints its own on shutdown; the two are
-            // reported separately because they are pinned to different cores and answer different
-            // questions.
-            System.out.printf("CLIENTCPU %s %s%n", delta, delta.perRequest(requests.get()));
-            System.out.flush();
+            steady(channels, latency, perLoop, requests, errors, durationSec, rate, intervalNanos);
         } finally {
             for (Channel ch : channels) {
                 ch.close();
             }
             group.shutdownGracefully();
         }
+    }
+
+    /**
+     * The setup phase, identical for every protocol: every connection opened and every handshake
+     * completed. Shared with the QUIC path for the same reason {@link #steady} is.
+     */
+    static void ramp(int requested, int established, long errors, long rampNanos) {
+        System.out.printf("RAMP  connections=%d established=%d errors=%d wallMs=%d connPerSec=%.0f "
+                        + "%s%n",
+                requested, established, errors,
+                TimeUnit.NANOSECONDS.toMillis(rampNanos),
+                established / (rampNanos / 1e9), Prealloc.poolState());
+        System.out.flush();
+    }
+
+    /**
+     * The measured window, identical for every protocol.
+     *
+     * <p>Shared rather than copied because the whole point of adding QUIC to this harness is that
+     * its tables line up with the TCP ones. Two copies of this method would drift, and the first
+     * thing to drift would be the {@code STEADY} line, which is what every script greps.
+     *
+     * @param channels the channels carrying a {@link RequestLoop}: TCP sockets, or QUIC streams.
+     * @param perLoop  per-event-loop histograms, or null in the default allocating path.
+     */
+    static void steady(List<Channel> channels, Histogram latency,
+                       Map<EventExecutor, Histogram> perLoop, AtomicLong requests, AtomicLong errors,
+                       int durationSec, int rate, long intervalNanos) throws InterruptedException {
+        latency.reset();
+        if (perLoop != null) {
+            for (Histogram h : perLoop.values()) {
+                h.reset();
+            }
+        }
+        requests.set(0);
+        Counters before = Counters.snapshot();
+        String poolBefore = Prealloc.poolState();
+        long steadyStart = System.nanoTime();
+        // Stagger the open-loop tickers across one interval, or 10k connections all fire in
+        // the same millisecond and the load arrives as a spike rather than at the target rate.
+        long stagger = 0;
+        long staggerStep = intervalNanos == 0 || channels.isEmpty()
+                ? 0 : intervalNanos / channels.size();
+        for (Channel ch : channels) {
+            ch.pipeline().get(RequestLoop.class).start(ch, stagger);
+            stagger += staggerStep;
+        }
+        Thread.sleep(TimeUnit.SECONDS.toMillis(durationSec));
+        long steadyNanos = System.nanoTime() - steadyStart;
+        // Read the counters at the end of the measured window rather than after the drain, so
+        // the 200 ms quiet period below is not counted as allocation-free time.
+        Counters delta = Counters.snapshot().since(before);
+        String poolAfter = Prealloc.poolState();
+        for (Channel ch : channels) {
+            ch.pipeline().get(RequestLoop.class).stop();
+        }
+        // Let anything in flight land before reading the histogram.
+        Thread.sleep(200);
+
+        if (perLoop != null) {
+            for (Histogram h : perLoop.values()) {
+                latency.add(h);
+            }
+        }
+        double seconds = steadyNanos / 1e9;
+        double achieved = requests.get() / seconds;
+        // Percentiles from an open-loop run only mean anything if the offered rate was actually
+        // delivered. If the system could not keep up, the histogram holds the backlog, and
+        // quoting that as latency is the same mistake as quoting closed-loop p50.
+        String mode = rate == 0
+                ? "closed-loop:latency-is-queue-depth"
+                : achieved >= rate * 0.95
+                    ? "open-loop:target-met"
+                    : String.format("open-loop:TARGET-MISSED-%.0f%%:percentiles-invalid",
+                                    100 * achieved / rate);
+        System.out.printf(
+            "STEADY durationS=%.1f requests=%d reqPerSec=%.0f targetPerSec=%d errors=%d "
+            + "p50us=%d p99us=%d p999us=%d maxUs=%d mode=%s %s poolBefore=[%s] poolAfter=[%s]%n",
+            seconds, requests.get(), achieved, rate, errors.get(),
+            latency.getValueAtPercentile(50.0), latency.getValueAtPercentile(99.0),
+            latency.getValueAtPercentile(99.9), latency.getMaxValue(), mode,
+            delta.perRequest(requests.get()), poolBefore, poolAfter);
+        // Where the client spent itself. The server prints its own on shutdown; the two are
+        // reported separately because they are pinned to different cores and answer different
+        // questions.
+        System.out.printf("CLIENTCPU %s %s%n", delta, delta.perRequest(requests.get()));
+        System.out.flush();
     }
 
     /**
@@ -595,6 +638,11 @@ public final class LoadTest {
      * naming has changed across versions and a name-matching scheme that stopped matching would
      * report a confident zero.
      */
+    /** Point the allocation counters at this group's event loops. Shared with the QUIC path. */
+    static void trackLoops(EventLoopGroup group) {
+        Counters.trackLoopThreads(loopThreadIds(group));
+    }
+
     private static long[] loopThreadIds(EventLoopGroup group) {
         List<Future<Long>> futures = new ArrayList<Future<Long>>();
         for (EventExecutor e : group) {
