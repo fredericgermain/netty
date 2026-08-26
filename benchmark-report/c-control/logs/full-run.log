@@ -1,0 +1,206 @@
+[12:56:59] phase=stock rounds=5 duration=12s lengths=[128 512 1000] conns=[1 50 300 1000]
+[12:57:00] idle check: us=2 sy=0 id=98
+[12:57:00] === round 1 ===
+[12:57:13]   r1 epoll len=128 c=1 -> 70661 req/s 
+[12:57:27]   r1 iouring len=128 c=1 -> 68600 req/s 
+[12:57:41]   r1 epoll len=128 c=50 -> 197063 req/s 
+[12:57:56]   r1 iouring len=128 c=50 -> 215910 req/s 
+[12:58:10]   r1 epoll len=128 c=300 -> 186367 req/s 
+[12:58:25]   r1 iouring len=128 c=300 -> 197837 req/s 
+[12:58:39]   r1 epoll len=128 c=1000 -> 156583 req/s 
+[12:58:53]   r1 iouring len=128 c=1000 -> 154082 req/s 
+[12:59:08]   r1 epoll len=512 c=1 -> 68266 req/s 
+[12:59:22]   r1 iouring len=512 c=1 -> 67381 req/s 
+[12:59:37]   r1 epoll len=512 c=50 -> 193604 req/s 
+[12:59:51]   r1 iouring len=512 c=50 -> 213270 req/s 
+[13:00:05]   r1 epoll len=512 c=300 -> 181989 req/s 
+[13:00:20]   r1 iouring len=512 c=300 -> 195786 req/s 
+[13:00:34]   r1 epoll len=512 c=1000 -> 151586 req/s 
+[13:00:49]   r1 iouring len=512 c=1000 -> 148468 req/s 
+[13:01:03]   r1 epoll len=1000 c=1 -> 67263 req/s 
+[13:01:18]   r1 iouring len=1000 c=1 -> 65510 req/s 
+[13:01:32]   r1 epoll len=1000 c=50 -> 191829 req/s 
+[13:01:46]   r1 iouring len=1000 c=50 -> 206183 req/s 
+[13:02:01]   r1 epoll len=1000 c=300 -> 175919 req/s 
+[13:02:15]   r1 iouring len=1000 c=300 -> 185402 req/s 
+[13:02:30]   r1 epoll len=1000 c=1000 -> 148729 req/s 
+[13:02:44]   r1 iouring len=1000 c=1000 -> 143034 req/s 
+[13:02:47] idle after round 1: id=99
+[13:02:47] === round 2 ===
+[13:03:00]   r2 iouring len=128 c=1 -> 67819 req/s 
+[13:03:14]   r2 epoll len=128 c=1 -> 69553 req/s 
+[13:03:28]   r2 iouring len=128 c=50 -> 214083 req/s 
+[13:03:43]   r2 epoll len=128 c=50 -> 195584 req/s 
+[13:03:57]   r2 iouring len=128 c=300 -> 198826 req/s 
+[13:04:12]   r2 epoll len=128 c=300 -> 188827 req/s 
+[13:04:26]   r2 iouring len=128 c=1000 -> 155620 req/s 
+[13:04:41]   r2 epoll len=128 c=1000 -> 156381 req/s 
+[13:04:55]   r2 iouring len=512 c=1 -> 68003 req/s 
+[13:05:09]   r2 epoll len=512 c=1 -> 69648 req/s 
+[13:05:24]   r2 iouring len=512 c=50 -> 213600 req/s 
+[13:05:38]   r2 epoll len=512 c=50 -> 191856 req/s 
+[13:05:52]   r2 iouring len=512 c=300 -> 192779 req/s 
+[13:06:07]   r2 epoll len=512 c=300 -> 182173 req/s 
+[13:06:21]   r2 iouring len=512 c=1000 -> 148249 req/s 
+[13:06:36]   r2 epoll len=512 c=1000 -> 152251 req/s 
+[13:06:50]   r2 iouring len=1000 c=1 -> 65898 req/s 
+[13:07:05]   r2 epoll len=1000 c=1 -> 66562 req/s 
+[13:07:19]   r2 iouring len=1000 c=50 -> 208631 req/s 
+[13:07:33]   r2 epoll len=1000 c=50 -> 191909 req/s 
+[13:07:48]   r2 iouring len=1000 c=300 -> 181712 req/s 
+[13:08:02]   r2 epoll len=1000 c=300 -> 175792 req/s 
+[13:08:17]   r2 iouring len=1000 c=1000 -> 143573 req/s 
+[13:08:31]   r2 epoll len=1000 c=1000 -> 149264 req/s 
+[13:08:34] idle after round 2: id=98
+[13:08:34] === round 3 ===
+[13:08:47]   r3 epoll len=128 c=1 -> 69472 req/s 
+[13:09:01]   r3 iouring len=128 c=1 -> 68965 req/s 
+[13:09:15]   r3 epoll len=128 c=50 -> 198760 req/s 
+[13:09:30]   r3 iouring len=128 c=50 -> 214642 req/s 
+[13:09:44]   r3 epoll len=128 c=300 -> 186814 req/s 
+[13:09:58]   r3 iouring len=128 c=300 -> 196691 req/s 
+[13:10:13]   r3 epoll len=128 c=1000 -> 156528 req/s 
+[13:10:27]   r3 iouring len=128 c=1000 -> 155643 req/s 
+[13:10:42]   r3 epoll len=512 c=1 -> 68745 req/s 
+[13:10:56]   r3 iouring len=512 c=1 -> 67578 req/s 
+[13:11:11]   r3 epoll len=512 c=50 -> 193659 req/s 
+[13:11:25]   r3 iouring len=512 c=50 -> 213773 req/s 
+[13:11:39]   r3 epoll len=512 c=300 -> 182681 req/s 
+[13:11:54]   r3 iouring len=512 c=300 -> 192877 req/s 
+[13:12:08]   r3 epoll len=512 c=1000 -> 151919 req/s 
+[13:12:23]   r3 iouring len=512 c=1000 -> 146993 req/s 
+[13:12:37]   r3 epoll len=1000 c=1 -> 67137 req/s 
+[13:12:52]   r3 iouring len=1000 c=1 -> 66014 req/s 
+[13:13:06]   r3 epoll len=1000 c=50 -> 190710 req/s 
+[13:13:20]   r3 iouring len=1000 c=50 -> 208815 req/s 
+[13:13:35]   r3 epoll len=1000 c=300 -> 171368 req/s 
+[13:13:49]   r3 iouring len=1000 c=300 -> 183867 req/s 
+[13:14:04]   r3 epoll len=1000 c=1000 -> 149124 req/s 
+[13:14:18]   r3 iouring len=1000 c=1000 -> 141133 req/s 
+[13:14:21] idle after round 3: id=99
+[13:14:21] === round 4 ===
+[13:14:34]   r4 iouring len=128 c=1 -> 68406 req/s 
+[13:14:48]   r4 epoll len=128 c=1 -> 70517 req/s 
+[13:15:02]   r4 iouring len=128 c=50 -> 212766 req/s 
+[13:15:17]   r4 epoll len=128 c=50 -> 195484 req/s 
+[13:15:31]   r4 iouring len=128 c=300 -> 197770 req/s 
+[13:15:46]   r4 epoll len=128 c=300 -> 186655 req/s 
+[13:16:00]   r4 iouring len=128 c=1000 -> 155291 req/s 
+[13:16:15]   r4 epoll len=128 c=1000 -> 156323 req/s 
+[13:16:29]   r4 iouring len=512 c=1 -> 67891 req/s 
+[13:16:43]   r4 epoll len=512 c=1 -> 68935 req/s 
+[13:16:58]   r4 iouring len=512 c=50 -> 213075 req/s 
+[13:17:12]   r4 epoll len=512 c=50 -> 194744 req/s 
+[13:17:27]   r4 iouring len=512 c=300 -> 193478 req/s 
+[13:17:41]   r4 epoll len=512 c=300 -> 185295 req/s 
+[13:17:55]   r4 iouring len=512 c=1000 -> 148190 req/s 
+[13:18:10]   r4 epoll len=512 c=1000 -> 150813 req/s 
+[13:18:24]   r4 iouring len=1000 c=1 -> 65804 req/s 
+[13:18:39]   r4 epoll len=1000 c=1 -> 67266 req/s 
+[13:18:53]   r4 iouring len=1000 c=50 -> 206541 req/s 
+[13:19:08]   r4 epoll len=1000 c=50 -> 191838 req/s 
+[13:19:22]   r4 iouring len=1000 c=300 -> 185753 req/s 
+[13:19:36]   r4 epoll len=1000 c=300 -> 175904 req/s 
+[13:19:51]   r4 iouring len=1000 c=1000 -> 141033 req/s 
+[13:20:05]   r4 epoll len=1000 c=1000 -> 148398 req/s 
+[13:20:08] idle after round 4: id=98
+[13:20:08] === round 5 ===
+[13:20:21]   r5 epoll len=128 c=1 -> 69888 req/s 
+[13:20:35]   r5 iouring len=128 c=1 -> 68100 req/s 
+[13:20:50]   r5 epoll len=128 c=50 -> 194155 req/s 
+[13:21:04]   r5 iouring len=128 c=50 -> 213922 req/s 
+[13:21:18]   r5 epoll len=128 c=300 -> 186764 req/s 
+[13:21:33]   r5 iouring len=128 c=300 -> 198923 req/s 
+[13:21:47]   r5 epoll len=128 c=1000 -> 157225 req/s 
+[13:22:02]   r5 iouring len=128 c=1000 -> 155107 req/s 
+[13:22:16]   r5 epoll len=512 c=1 -> 68092 req/s 
+[13:22:30]   r5 iouring len=512 c=1 -> 67561 req/s 
+[13:22:45]   r5 epoll len=512 c=50 -> 193836 req/s 
+[13:22:59]   r5 iouring len=512 c=50 -> 212382 req/s 
+[13:23:14]   r5 epoll len=512 c=300 -> 183141 req/s 
+[13:23:28]   r5 iouring len=512 c=300 -> 194003 req/s 
+[13:23:43]   r5 epoll len=512 c=1000 -> 151248 req/s 
+[13:23:57]   r5 iouring len=512 c=1000 -> 150429 req/s 
+[13:24:11]   r5 epoll len=1000 c=1 -> 67109 req/s 
+[13:24:26]   r5 iouring len=1000 c=1 -> 66276 req/s 
+[13:24:40]   r5 epoll len=1000 c=50 -> 192720 req/s 
+[13:24:55]   r5 iouring len=1000 c=50 -> 207366 req/s 
+[13:25:09]   r5 epoll len=1000 c=300 -> 175124 req/s 
+[13:25:23]   r5 iouring len=1000 c=300 -> 183866 req/s 
+[13:25:38]   r5 epoll len=1000 c=1000 -> 148552 req/s 
+[13:25:52]   r5 iouring len=1000 c=1000 -> 140238 req/s 
+[13:25:55] idle after round 5: id=99
+[13:25:55] done, results in /home/fred/c-control/results-stock.tsv
+[13:25:55] phase=big rounds=5 duration=12s lengths=[1024 8192 65536] conns=[50 300]
+[13:25:56] idle check: us=1 sy=1 id=99
+[13:25:56] === round 1 ===
+[13:26:09]   r1 epoll len=1024 c=50 -> 191231 req/s 
+[13:26:23]   r1 iouring len=1024 c=50 -> 208606 req/s 
+[13:26:38]   r1 epoll len=1024 c=300 -> 179212 req/s 
+[13:26:52]   r1 iouring len=1024 c=300 -> 182689 req/s 
+[13:27:06]   r1 epoll len=8192 c=50 -> 157000 req/s 
+[13:27:21]   r1 iouring len=8192 c=50 -> 156524 req/s 
+[13:27:35]   r1 epoll len=8192 c=300 -> 117635 req/s 
+[13:27:50]   r1 iouring len=8192 c=300 -> 112537 req/s 
+[13:28:04]   r1 epoll len=65536 c=50 -> 44199 req/s 
+[13:28:18]   r1 iouring len=65536 c=50 -> 36621 req/s 
+[13:28:33]   r1 epoll len=65536 c=300 -> 38213 req/s 
+[13:28:47]   r1 iouring len=65536 c=300 -> 31785 req/s 
+[13:28:50] idle after round 1: id=88
+[13:28:50] === round 2 ===
+[13:29:03]   r2 iouring len=1024 c=50 -> 209199 req/s 
+[13:29:17]   r2 epoll len=1024 c=50 -> 192855 req/s 
+[13:29:31]   r2 iouring len=1024 c=300 -> 185055 req/s 
+[13:29:46]   r2 epoll len=1024 c=300 -> 179040 req/s 
+[13:30:00]   r2 iouring len=8192 c=50 -> 153483 req/s 
+[13:30:15]   r2 epoll len=8192 c=50 -> 156207 req/s 
+[13:30:29]   r2 iouring len=8192 c=300 -> 112694 req/s 
+[13:30:43]   r2 epoll len=8192 c=300 -> 120314 req/s 
+[13:30:58]   r2 iouring len=65536 c=50 -> 36713 req/s 
+[13:31:12]   r2 epoll len=65536 c=50 -> 44938 req/s 
+[13:31:27]   r2 iouring len=65536 c=300 -> 31815 req/s 
+[13:31:41]   r2 epoll len=65536 c=300 -> 38011 req/s 
+[13:31:44] idle after round 2: id=99
+[13:31:44] === round 3 ===
+[13:31:57]   r3 epoll len=1024 c=50 -> 191912 req/s 
+[13:32:11]   r3 iouring len=1024 c=50 -> 210239 req/s 
+[13:32:25]   r3 epoll len=1024 c=300 -> 176620 req/s 
+[13:32:40]   r3 iouring len=1024 c=300 -> 183874 req/s 
+[13:32:54]   r3 epoll len=8192 c=50 -> 155842 req/s 
+[13:33:09]   r3 iouring len=8192 c=50 -> 154875 req/s 
+[13:33:23]   r3 epoll len=8192 c=300 -> 118886 req/s 
+[13:33:37]   r3 iouring len=8192 c=300 -> 111825 req/s 
+[13:33:52]   r3 epoll len=65536 c=50 -> 44219 req/s 
+[13:34:06]   r3 iouring len=65536 c=50 -> 36722 req/s 
+[13:34:21]   r3 epoll len=65536 c=300 -> 38208 req/s 
+[13:34:35]   r3 iouring len=65536 c=300 -> 31909 req/s 
+[13:34:38] idle after round 3: id=99
+[13:34:38] === round 4 ===
+[13:34:50]   r4 iouring len=1024 c=50 -> 209537 req/s 
+[13:35:05]   r4 epoll len=1024 c=50 -> 193544 req/s 
+[13:35:19]   r4 iouring len=1024 c=300 -> 181502 req/s 
+[13:35:34]   r4 epoll len=1024 c=300 -> 176617 req/s 
+[13:35:48]   r4 iouring len=8192 c=50 -> 154742 req/s 
+[13:36:02]   r4 epoll len=8192 c=50 -> 157699 req/s 
+[13:36:17]   r4 iouring len=8192 c=300 -> 112898 req/s 
+[13:36:31]   r4 epoll len=8192 c=300 -> 118395 req/s 
+[13:36:46]   r4 iouring len=65536 c=50 -> 36566 req/s 
+[13:37:00]   r4 epoll len=65536 c=50 -> 44446 req/s 
+[13:37:14]   r4 iouring len=65536 c=300 -> 31925 req/s 
+[13:37:29]   r4 epoll len=65536 c=300 -> 38081 req/s 
+[13:37:32] idle after round 4: id=99
+[13:37:32] === round 5 ===
+[13:37:44]   r5 epoll len=1024 c=50 -> 191513 req/s 
+[13:37:59]   r5 iouring len=1024 c=50 -> 210404 req/s 
+[13:38:13]   r5 epoll len=1024 c=300 -> 176414 req/s 
+[13:38:27]   r5 iouring len=1024 c=300 -> 185547 req/s 
+[13:38:42]   r5 epoll len=8192 c=50 -> 155100 req/s 
+[13:38:56]   r5 iouring len=8192 c=50 -> 155275 req/s 
+[13:39:11]   r5 epoll len=8192 c=300 -> 118399 req/s 
+[13:39:25]   r5 iouring len=8192 c=300 -> 114426 req/s 
+[13:39:40]   r5 epoll len=65536 c=50 -> 45416 req/s 
+[13:39:54]   r5 iouring len=65536 c=50 -> 36464 req/s 
+[13:40:08]   r5 epoll len=65536 c=300 -> 38090 req/s 
+[13:40:23]   r5 iouring len=65536 c=300 -> 31861 req/s 
+[13:40:26] idle after round 5: id=98
+[13:40:26] done, results in /home/fred/c-control/results-big.tsv
