@@ -295,3 +295,62 @@ The reportable finding is not "netty's io_uring completion path is slow". It is 
 io_uring transport scales badly with message size**, losing 13% at 1 KB and 53% at 64 KB in a
 straight echo, which is specific, reproducible in three rounds with tight spreads, and not explained
 by any of the three knobs. That belongs upstream as a question before it belongs in a patch.
+
+
+## Root cause of the size cliff: a memory-footprint feedback loop, not a slow completion path
+
+Investigated directly rather than filed as a question. The chain, each step measured:
+
+**1. At 256 KB the io_uring server allocates pooled arena chunks continuously.** Profiling both
+sides at the payload where the deficit is worst, samples reaching
+`PoolArena$DirectArena.newChunk -> ByteBuffer.allocateDirect`: epoll server **7**, io_uring server
+**1201**. Every new chunk is an mmap plus a zeroing pass, which is precisely the kernel cluster that
+separates the two profiles (`do_user_addr_fault`, `clear_page_erms`, `page_counter_try_charge`).
+
+**2. Measured directly rather than inferred from samples.** `usedDirectMemory` and live chunk count,
+sampled every 2 s during steady state at 256 KB / 500 connections:
+
+| server | req/s | pooled direct memory across the run |
+|---|---|---|
+| epoll | 9,139 | 32 MB / 8 chunks, identical in every sample |
+| io_uring | 3,966 | 72, 76, **140**, 44, 56, 40, 68, 80, 60, 80 MB (8 to 36 chunks) |
+| io_uring + buffer ring | 4,176 | 76, 44, 44, 44, 52, **124, 128**, 56, 40, 68 MB |
+
+epoll's arena never moves. io_uring's thrashes. A provided buffer ring does not fix it, because it
+covers only the read path while the echo still writes 256 KB back through the pool.
+
+**3. That comparison is circular, so it does not stand on its own.** io_uring was 2.3x slower in
+those cells, so more connections have a partially accumulated frame at any instant, and higher live
+memory follows from being slow rather than causing it.
+
+**4. Open loop breaks the circle.** Both transports driven at a fixed 2,000 req/s, comfortably below
+what either reached closed-loop, so in-flight frame count is matched by construction. Both met the
+target exactly:
+
+| server | user us/req | system us/req | total | pooled memory |
+|---|---|---|---|---|
+| epoll | 76.2 | 127.5 | **203.7** | 16 MB / 4 chunks, flat |
+| io_uring | 86.0 | 117.1 | **203.1** | 32 MB / 8 chunks, flat |
+
+**io_uring is not intrinsically more expensive per operation.** At equal offered load its CPU per
+request matches epoll to within 0.3%, and the chunk thrashing disappears. What survives is a
+footprint difference: **io_uring holds twice the pooled direct memory for identical work**, stably
+and independently of speed.
+
+That is not a defect, it is what completion-based I/O requires. A readiness-based transport
+allocates a receive buffer when data is already available; a completion-based one must commit the
+buffer when it SUBMITS the read, so it holds one per read in flight rather than one per ready read.
+
+**The cliff is the interaction, not either half.** The footprint is 2x at every size. Near
+saturation that pushes the arena past its working set, the pool answers with continuous chunk mmap
+and zeroing, that burns CPU, throughput falls, more frames sit mid-accumulation, memory rises
+further. A feedback loop that only engages once the threshold is crossed. At 1 KB, twice a small
+footprint crosses nothing and the gap is 13%. At 256 KB it crosses, and the gap is 59%.
+
+This also retires the framing of the three earlier negative results. Ring size, buffer rings and
+registered files were all aimed at per-operation cost, and per-operation cost was never the problem:
+at equal load there is no per-operation difference to recover.
+
+**What follows for anyone running netty on io_uring**: size the allocator for roughly twice the
+direct memory epoll needs at the same load, or cap the receive buffer, and the cliff should not
+engage. Untested here, and stated as a prediction rather than a result.
