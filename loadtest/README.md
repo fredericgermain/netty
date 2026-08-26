@@ -214,3 +214,84 @@ Caveat on this run: epoll/epoll drifted upward across rounds (131k, 124k, 139k, 
 machine was not in a steady state for the whole hour. Interleaving means every cell saw the same
 drift, and the per-round ordering is unaffected, but the medians carry more uncertainty than their
 spread alone suggests.
+
+
+## Message size: io_uring does not have a size where it shines, it has a cliff
+
+The 1 KB payload was chosen to keep the test syscall-bound, which is the worst case for io_uring:
+the syscall it replaces is a cheap loopback copy and the ring's per-operation bookkeeping has
+nothing to amortise against. The obvious prediction is that raising the payload shrinks the gap.
+
+It does the opposite. Single run, connections scaled down as payload rises so bytes in flight stay
+sane:
+
+| payload | conns | epoll | io_uring | io_uring + SEND_ZC | io_uring as % of epoll |
+|---|---|---|---|---|---|
+| 1 KB | 10,000 | 137,671 | 119,917 | 70,156 | 87% |
+| 8 KB | 10,000 | 115,997 | 86,717 | 50,535 | 75% |
+| 64 KB | 2,000 | 38,914 | 18,137 | 18,374 | **47%** |
+| 256 KB | 500 | 9,259 | 3,767 | 3,813 | **41%** |
+
+In bandwidth terms at 64 KB that is 2.4 GB/s against 1.1 GB/s.
+
+**Zero-copy send does not rescue it and below 64 KB it is actively harmful**, costing 41% at 1 KB
+and 42% at 8 KB, then becoming a wash at 64 KB and above. `IO_URING_WRITE_ZERO_COPY_THRESHOLD`
+defaults to -1 (off) and this is a good argument for leaving it there unless measured: it trades a
+copy for page pinning plus a second completion, and below the crossover the trade is bad. This is
+the one io_uring feature with no netty epoll equivalent, so it was the only candidate for an
+outright win, and it is not one.
+
+Confirmed at 64 KB with three interleaved rounds and tight spreads (epoll 40,493-42,234, io_uring
+18,682-18,754). Client CPU per request at 64 KB: epoll 35 us user + 60 us system, io_uring 72 us
+user + 88 us system. io_uring uses roughly 70% more CPU per request **and** delivers less than half
+the throughput.
+
+### Buffer rings at large payload: real, and far too small to matter
+
+The kernel profile shows io_uring carrying a class of frames epoll does not have at all:
+`do_user_addr_fault` 2.31%, `refill_stock` 1.78%, `clear_page_erms` 1.48%,
+`page_counter_try_charge` 1.26% -- page faulting, page zeroing and cgroup memory accounting, about
+6.8% of its kernel time. That is the signature of allocating fresh pages in steady state, and
+without a provided buffer ring netty allocates a receive ByteBuf per read. At 64 KB that is a 64 KB
+direct buffer per read, which made buffer rings a well-targeted hypothesis at this size even though
+they did nothing at 1 KB.
+
+Three rounds at 64 KB, 2000 connections:
+
+| cell | rounds | median |
+|---|---|---|
+| epoll | 40,493 - 42,234 | 40,999 |
+| io_uring, no buffer ring | 18,682 - 18,754 | 18,702 |
+| io_uring + 512 x 64 KB buffers | 19,421 - 19,787 | 19,680 |
+| io_uring + 2048 x 16 KB buffers | 19,019 - 19,427 | 19,118 |
+
+Buffer rings win by ~5%, consistently and with non-overlapping ranges, so unlike the 1 KB case this
+is a real effect. It recovers about 4% of a 120% gap. Memory churn is a contributor and not the
+cause.
+
+Note the two buffer sizes perform nearly identically. If large reads were being chunked by buffer
+size, 16 KB buffers would need four times the completions of 64 KB buffers and should have been
+markedly worse. They are not, so read chunking is not the mechanism either.
+
+### Registered files: ruled out before writing any of it
+
+`IOSQE_FIXED_FILE` appears nowhere in netty's io_uring transport, so every SQE carries a raw fd and
+the kernel does a table lookup and refcount per operation. Registering files is the textbook fix and
+would have been a large change across the JNI and Java layers.
+
+The kernel profile kills it: `fget` is 1.68% of io_uring's kernel time against epoll's `__fdget` at
+1.58%. Eliminating fd lookup entirely would recover about 1% of total CPU against a gap of 120%.
+Checking the profile first cost one command and saved the whole implementation.
+
+### What this leaves
+
+There is no hot spot. The user-space profile is a long tail (`handleFastPath` 3.8%, jctools
+accessors 3.0%, `scheduleWriteMultiple` 2.6%, `writeComplete0` 2.3%) and the three structural levers
+available are measured at roughly +5% (buffer rings), ~1% (registered files) and negative
+(zero-copy send). A rewrite of the completion path is not justified by this evidence, and would be
+tuning against a profile with no peak in it.
+
+The reportable finding is not "netty's io_uring completion path is slow". It is that **netty's
+io_uring transport scales badly with message size**, losing 13% at 1 KB and 53% at 64 KB in a
+straight echo, which is specific, reproducible in three rounds with tight spreads, and not explained
+by any of the three knobs. That belongs upstream as a question before it belongs in a patch.

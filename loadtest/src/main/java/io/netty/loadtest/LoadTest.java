@@ -15,6 +15,7 @@
  */
 package io.netty.loadtest;
 
+import io.netty.bootstrap.AbstractBootstrap;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.ByteBuf;
@@ -131,6 +132,7 @@ public final class LoadTest {
                               .addLast(new EchoHandler());
                         }
                     });
+            applyZeroCopy(b, t, a);
             Channel ch = b.bind(new InetSocketAddress(a.get("host", "0.0.0.0"), a.getInt("port", 9999)))
                           .sync().channel();
             // Cumulative snapshots on a fixed cadence, rather than one total at shutdown. The
@@ -203,6 +205,7 @@ public final class LoadTest {
                     .option(ChannelOption.TCP_NODELAY, true)
                     .option(ChannelOption.ALLOCATOR, PooledByteBufAllocator.DEFAULT)
                     .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 30000);
+            applyZeroCopy(b, t, a);
 
             // ---------------- ramp
             CountDownLatch ready = new CountDownLatch(connections);
@@ -415,6 +418,46 @@ public final class LoadTest {
         @Override public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
             errors.incrementAndGet();
             ctx.close();
+        }
+    }
+
+    /**
+     * Turns on {@code IORING_OP_SEND_ZC} above a byte threshold, for io_uring only.
+     *
+     * <p>Netty exposes this as {@code IO_URING_WRITE_ZERO_COPY_THRESHOLD} and defaults it to -1,
+     * meaning off, so every write copies. Zero-copy send is the one io_uring feature with no epoll
+     * equivalent in netty: matching it would need {@code MSG_ZEROCOPY}, which netty's epoll
+     * transport does not use. That makes it the only lever here that could let io_uring win
+     * outright rather than merely catch up, and it can only pay above the payload size where the
+     * avoided copy outweighs the page pinning and the extra completion notification it costs.
+     *
+     * <p>Set by reflection because the option class lives in the io_uring artifact: naming it
+     * directly would make this class fail to load when running the epoll or NIO cells on a machine
+     * that has no io_uring jar. Every failure path aborts rather than leaving the option quietly
+     * unset, on the same rule as the transport selection: a cell labelled zero-copy that silently
+     * was not would be worse than no cell at all.
+     */
+    private static void applyZeroCopy(AbstractBootstrap<?, ?> b, Transports t, Args a) {
+        int threshold = a.getInt("zc-threshold", -1);
+        if (threshold < 0) {
+            return;
+        }
+        if (t != Transports.IO_URING) {
+            throw new IllegalArgumentException("--zc-threshold needs --transport=io_uring, got " + t);
+        }
+        try {
+            Class<?> optionClass = Class.forName("io.netty.channel.uring.IoUringChannelOption");
+            @SuppressWarnings("unchecked")
+            ChannelOption<Integer> option = (ChannelOption<Integer>)
+                    optionClass.getField("IO_URING_WRITE_ZERO_COPY_THRESHOLD").get(null);
+            if (b instanceof ServerBootstrap) {
+                // The server's writes happen on the accepted children, not on the listening socket.
+                ((ServerBootstrap) b).childOption(option, threshold);
+            } else {
+                b.option(option, threshold);
+            }
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("cannot set IO_URING_WRITE_ZERO_COPY_THRESHOLD", e);
         }
     }
 }
