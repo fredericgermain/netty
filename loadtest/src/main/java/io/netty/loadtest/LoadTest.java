@@ -101,8 +101,14 @@ public final class LoadTest {
         SslContext ssl = Tls.serverContext(a.get("tls", "none"));
 
         int ringSize = a.getInt("ring-size", 16384);
-        EventLoopGroup boss = new MultiThreadIoEventLoopGroup(1, t.ioHandler(ringSize));
-        EventLoopGroup worker = new MultiThreadIoEventLoopGroup(a.threads(), t.ioHandler(ringSize));
+        // 0 means no provided buffer ring, which is netty's default and also the configuration in
+        // which multishot recv never arms. Kept as the default here so the existing numbers stay
+        // comparable, and swept explicitly rather than switched on silently.
+        int bufRing = a.getInt("buffer-ring", 0);
+        int bufSize = a.getInt("buffer-ring-size", 2048);
+        EventLoopGroup boss = new MultiThreadIoEventLoopGroup(1, t.ioHandler(ringSize, bufRing, bufSize));
+        EventLoopGroup worker =
+                new MultiThreadIoEventLoopGroup(a.threads(), t.ioHandler(ringSize, bufRing, bufSize));
         try {
             ServerBootstrap b = new ServerBootstrap()
                     .group(boss, worker)
@@ -139,7 +145,8 @@ public final class LoadTest {
 
             System.out.println("READY transport=" + t + " tls=" + a.get("tls", "none")
                     + " backlog=" + a.getInt("backlog", 8192) + " threads=" + a.threads()
-                    + " ringSize=" + ringSize);
+                    + " ringSize=" + ringSize + " bufferRing=" + bufRing
+                    + (bufRing > 0 ? " bufferSize=" + bufSize : ""));
             System.out.flush();
             ch.closeFuture().sync();
         } finally {
@@ -179,7 +186,9 @@ public final class LoadTest {
         String host = a.get("host", "127.0.0.1");
         int port = a.getInt("port", 9999);
 
-        EventLoopGroup group = new MultiThreadIoEventLoopGroup(a.threads(), t.ioHandler(a.getInt("ring-size", 16384)));
+        EventLoopGroup group = new MultiThreadIoEventLoopGroup(a.threads(),
+                t.ioHandler(a.getInt("ring-size", 16384), a.getInt("buffer-ring", 0),
+                            a.getInt("buffer-ring-size", 2048)));
         // Recorded across every connection. Values are microseconds; three significant digits is
         // plenty for percentiles and keeps the histogram small enough to be free.
         Histogram latency = new Histogram(1, TimeUnit.SECONDS.toMicros(60), 3);
