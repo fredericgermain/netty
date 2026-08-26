@@ -464,3 +464,84 @@ This makes the remediation testable with no code change at all:
 - **Loopback with queue depth 1 is io_uring's documented worst case**, since the syscall it exists
   to amortise is close to a memcpy. Any write-up needs this as a stated scope limit.
 - Registered files being negligible is confirmed by the literature, so that negative result stands.
+
+
+## The discriminator: it is reads per message, not writes and not the allocator
+
+The three corrections above each suggested a different mechanism. One sweep separates them, because
+each predicts a different lever. All cells 64 KB, 2000 connections, 5 interleaved rounds, corrected
+physical-core pinning (server 0,1,4,5 and client 2,3,6,7, which are whole cores on this box).
+
+| cell | median req/s |
+|---|---|
+| epoll, default | 40,630 |
+| io_uring, default | 17,257 |
+| io_uring, `SO_SNDBUF=64K` | 17,089 |
+| io_uring, `SO_SNDBUF=1M` | 17,502 |
+| io_uring, `--rcvbuf-max=16K` | **13,586** |
+| io_uring, `--rcvbuf-max=512K` | **23,458** |
+
+**The write spin loop is not the mechanism.** A 16x larger send buffer moves nothing: 17,257 /
+17,089 / 17,502 are one number. Netty's io_uring transport genuinely never reads
+`getWriteSpinCount()`, and that remains a real difference from the epoll transport, but partial
+writes are not what this workload is losing to. Hypothesis tested and rejected.
+
+**The receive buffer is the mechanism, and it is monotonic.** 16K gives 13,586, the 64K default
+gives 17,257, 512K gives 23,458. That is a 73% span driven by one knob, and it maps directly onto
+**reads per message**: a 64 KB payload plus its 4-byte header needs roughly 5 reads at a 16K buffer,
+2 at 64K, and 1 at 512K. Throughput is inversely ordered with the read count in every cell.
+
+That is the whole size cliff. Netty's `AdaptiveRecvByteBufAllocator` caps at 64 KB by default, so
+reads per message grow with payload, and **io_uring pays roughly double per read**: with no buffer
+ring configured `isPollInFirst()` returns true (`AbstractIoUringStreamChannel.java:798-801`) and each
+read is POLL_ADD then RECV, two submissions and two completions, where epoll does one `read()` on a
+shared `epoll_wait` wakeup. Multiply a 2x per-read cost by a read count that rises with payload and
+the deficit widens with message size, which is exactly the measured curve.
+
+At `--rcvbuf-max=512K` io_uring goes from 42% to 58% of epoll. The gap does not close, because the
+per-read penalty is still there, but a third of it is recoverable with one channel option.
+
+### What this retires
+
+- **The memory-footprint story is a symptom, not the cause.** It is real and reproduces under
+  corrected pinning (epoll holds 16 MB flat in every single sample; io_uring swings 16-212 MB), but
+  it follows from holding a buffer per read in flight, and the read count is the thing that varies.
+- **The allocator cache ceiling is not the fix.** Raising `maxCachedBufferCapacity` to 256 KB helps
+  epoll more than io_uring (+25% against +15%), which widens the ratio rather than closing it.
+- **musl is not a factor.** The same cell on `eclipse-temurin:21-jdk` (glibc) gives epoll
+  39,149-42,217 and io_uring 19,155-19,893, the same ~48% ratio as Alpine.
+
+### The SMT pinning error changed magnitudes, not conclusions
+
+Re-running 64 KB under both pinnings: with the old sibling-sharing cpusets epoll medians ~42,008 and
+io_uring ~18,373 (43.7%); with correct whole-core pinning epoll 34,959 and io_uring 17,794 (50.9%).
+The correction moves epoll down more than io_uring, because each side now has two real cores instead
+of four shared ones. So the artifact was working against io_uring, and correcting it shrinks the gap
+by about seven points without changing any ordering or conclusion.
+
+## The TLS inversion is real, and the warm-up trend was noise
+
+Ten consecutive rounds of each, fresh JVM per round, with CPU frequency, package temperature and
+load recorded per round so drift is measured rather than assumed.
+
+| | rounds | median |
+|---|---|---|
+| io_uring, TLS, 1 KB, 10k connections | 84,074 - 115,974 | **107,719** |
+| epoll, TLS, 1 KB, 10k connections | 72,755 - 97,351 | 94,681 |
+
+**io_uring is about 14% faster with TLS**, and 9 of its 10 rounds beat epoll's median. Frequency sat
+at 3.2 GHz and temperature at 71-76 C throughout, so this is not thermal drift.
+
+**The warm-up trend does not reproduce.** The earlier run climbed 70,442 to 115,189 across five fresh
+JVMs and blocked any TLS claim. Here round 1 is 115,260, the highest of the ten, and there is no
+trend at all, just noise with two low outliers. That was machine state in one run, not a property of
+the transport, and the TLS ordering is no longer blocked by it.
+
+Caveat worth keeping: these twenty rounds were consecutive per transport rather than interleaved,
+because the question asked was specifically whether a within-transport trend existed. The per-round
+frequency and temperature logging is what makes the cross-transport comparison usable anyway, and it
+should be repeated interleaved before it is quoted anywhere outside this file.
+
+This is consistent with the read-count mechanism rather than in tension with it. TLS at 1 KB spends
+most of its time in crypto, so per-read transport overhead is a much smaller share of the total, and
+io_uring's batching across ten thousand connections is free to show up.
