@@ -28,18 +28,23 @@ import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.EventLoopGroup;
+import io.netty.channel.FixedRecvByteBufAllocator;
 import io.netty.channel.MultiThreadIoEventLoopGroup;
+import io.netty.channel.RecvByteBufAllocator;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.netty.handler.codec.LengthFieldPrepender;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslHandler;
+import io.netty.util.concurrent.EventExecutor;
 import io.netty.util.concurrent.Future;
 import org.HdrHistogram.Histogram;
 
 import java.net.InetSocketAddress;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -68,6 +73,19 @@ import java.util.concurrent.atomic.AtomicLong;
  *
  * <p>Closed loop, one request in flight per connection: latency is then service time under the
  * offered concurrency, and throughput follows from it, which is the easiest shape to reason about.
+ *
+ * <h2>{@code --prealloc}: the harness as a variable</h2>
+ *
+ * <p>Off by default, and that default is load bearing. Every number recorded in
+ * {@code loadtest/README.md} before this flag existed was taken without it, and the old path is
+ * kept byte for byte so those numbers stay reproducible rather than merely quotable.
+ *
+ * <p>On, it removes the harness's own per-request allocation: one frame built at startup and
+ * re-derived per request instead of a fresh buffer memset to zero, no {@code LengthFieldPrepender},
+ * void promises, per-event-loop latency histograms, a primitive queue for open-loop due times, and
+ * an arena warm-up. See {@link Prealloc}. The wire format is identical either way -- a 4-byte
+ * big-endian length then the body -- so a pre-allocated client can drive a default server and the
+ * difference can be attributed to one side.
  */
 public final class LoadTest {
 
@@ -93,6 +111,13 @@ public final class LoadTest {
         System.err.println("         [--rate=N]  total req/s; omit to saturate (throughput only, latency invalid)");
         System.err.println("  --ring-size=N   io_uring ring entries, default 16384. Swept at 10k connections,");
         System.err.println("                  4096/16384/32768 measured within 1.5% of each other.");
+        System.err.println("  --prealloc      remove the harness's own per-request allocation. Needs --payload on");
+        System.err.println("                  the server too, and --connections or --warmup-mb to size the warm-up.");
+        System.err.println("  --warmup-mb=N   pooled direct memory to force into existence before the ramp.");
+        System.err.println("  --fixed-rcvbuf=N  FixedRecvByteBufAllocator instead of the adaptive one. Mutually");
+        System.err.println("                  exclusive with --rcvbuf-max.");
+        System.err.println("  --jvm-tuned     assert the JVM was started with -Xms==-Xmx, +AlwaysPreTouch and an");
+        System.err.println("                  explicit -XX:MaxDirectMemorySize; abort if it was not.");
     }
 
     // ------------------------------------------------------------------ server
@@ -100,7 +125,11 @@ public final class LoadTest {
     private static void server(Args a) throws Exception {
         Transports t = a.transport();
         t.ensureAvailable();
-        SslContext ssl = Tls.serverContext(a.get("tls", "none"));
+        final boolean prealloc = a.flag("prealloc");
+        if (a.flag("jvm-tuned")) {
+            Prealloc.requireTunedJvm();
+        }
+        final SslContext ssl = Tls.serverContext(a.get("tls", "none"));
 
         int ringSize = a.getInt("ring-size", 16384);
         // 0 means no provided buffer ring, which is netty's default and also the configuration in
@@ -109,8 +138,9 @@ public final class LoadTest {
         int bufRing = a.getInt("buffer-ring", 0);
         int bufSize = a.getInt("buffer-ring-size", 2048);
         EventLoopGroup boss = new MultiThreadIoEventLoopGroup(1, t.ioHandler(ringSize, bufRing, bufSize));
-        EventLoopGroup worker =
+        final EventLoopGroup worker =
                 new MultiThreadIoEventLoopGroup(a.threads(), t.ioHandler(ringSize, bufRing, bufSize));
+        Counters.trackLoopThreads(loopThreadIds(worker));
         try {
             ServerBootstrap b = new ServerBootstrap()
                     .group(boss, worker)
@@ -127,14 +157,22 @@ public final class LoadTest {
                             if (ssl != null) {
                                 ch.pipeline().addLast(ssl.newHandler(ch.alloc()));
                             }
-                            ch.pipeline()
-                              .addLast(new LengthFieldBasedFrameDecoder(1 << 20, 0, 4, 0, 4))
-                              .addLast(new LengthFieldPrepender(4))
-                              .addLast(new EchoHandler());
+                            // With --prealloc the length header is not stripped and not re-added:
+                            // the frame goes back out exactly as it arrived, which deletes
+                            // LengthFieldPrepender's per-write header allocation and its second
+                            // outbound message. The bytes on the wire are the same either way.
+                            ch.pipeline().addLast(prealloc
+                                    ? new LengthFieldBasedFrameDecoder(1 << 20, 0, 4, 0, 0)
+                                    : new LengthFieldBasedFrameDecoder(1 << 20, 0, 4, 0, 4));
+                            if (!prealloc) {
+                                ch.pipeline().addLast(new LengthFieldPrepender(4));
+                            }
+                            ch.pipeline().addLast(new EchoHandler(prealloc));
                         }
                     });
             applyZeroCopy(b, t, a);
-            applyBufferTuning(b, a);
+            String recvAlloc = applyBufferTuning(b, a, prealloc);
+            String warm = prealloc ? warmUp(a, worker) : "warm=off";
             Channel ch = b.bind(new InetSocketAddress(a.get("host", "0.0.0.0"), a.getInt("port", 9999)))
                           .sync().channel();
             // Cumulative snapshots on a fixed cadence, rather than one total at shutdown. The
@@ -145,7 +183,7 @@ public final class LoadTest {
             worker.next().scheduleAtFixedRate(() -> System.out.printf(
                     "SERVERCPU tMs=%d requests=%d %s %s%n",
                     System.currentTimeMillis(), SERVER_REQUESTS.get(), Counters.snapshot(),
-                    poolState()),
+                    Prealloc.poolState()),
                     2, 2, TimeUnit.SECONDS);
 
             System.out.println("READY transport=" + t + " tls=" + a.get("tls", "none")
@@ -153,7 +191,11 @@ public final class LoadTest {
                     + " ringSize=" + ringSize + " bufferRing=" + bufRing
                     + (bufRing > 0 ? " bufferSize=" + bufSize : "")
                     + " sndbuf=" + a.getInt("sndbuf", 0)
-                    + " rcvbufMax=" + a.getInt("rcvbuf-max", 0));
+                    + " rcvbufMax=" + a.getInt("rcvbuf-max", 0)
+                    + " prealloc=" + prealloc + " jvmTuned=" + a.flag("jvm-tuned")
+                    + " " + recvAlloc + " " + warm
+                    + " leakDetection=" + Prealloc.leakDetection()
+                    + " " + Prealloc.poolState());
             System.out.flush();
             ch.closeFuture().sync();
         } finally {
@@ -167,9 +209,23 @@ public final class LoadTest {
 
     /** Echoes the frame straight back. Nothing allocated, nothing copied. */
     private static final class EchoHandler extends ChannelInboundHandlerAdapter {
+        private final boolean voidPromise;
+
+        EchoHandler(boolean voidPromise) {
+            this.voidPromise = voidPromise;
+        }
+
         @Override public void channelRead(ChannelHandlerContext ctx, Object msg) {
             SERVER_REQUESTS.incrementAndGet();
-            ctx.writeAndFlush(msg);
+            if (voidPromise) {
+                // ctx.writeAndFlush(msg) with no promise calls newPromise(), which is a
+                // DefaultChannelPromise per request. The void promise is one instance per channel
+                // and still routes failures to exceptionCaught, which is the only thing this
+                // handler does with them.
+                ctx.writeAndFlush(msg, ctx.voidPromise());
+            } else {
+                ctx.writeAndFlush(msg);
+            }
         }
         @Override public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
             ctx.close();
@@ -181,27 +237,46 @@ public final class LoadTest {
     private static void client(Args a) throws Exception {
         Transports t = a.transport();
         t.ensureAvailable();
-        SslContext ssl = Tls.clientContext(a.get("tls", "none"));
+        final boolean prealloc = a.flag("prealloc");
+        if (a.flag("jvm-tuned")) {
+            Prealloc.requireTunedJvm();
+        }
+        final SslContext ssl = Tls.clientContext(a.get("tls", "none"));
 
         int connections = a.getInt("connections", 10000);
         int durationSec = a.getInt("duration", 15);
-        int payload = a.getInt("payload", 1024);
+        final int payload = a.getInt("payload", 1024);
         // Total requests/s across all connections. Absent => closed loop: saturate and report
         // throughput only, because closed-loop latency is queue depth rather than service time.
         int rate = a.getInt("rate", 0);
-        long intervalNanos = rate == 0 ? 0 : (long) (1e9 * connections / rate);
-        String host = a.get("host", "127.0.0.1");
-        int port = a.getInt("port", 9999);
+        final long intervalNanos = rate == 0 ? 0 : (long) (1e9 * connections / rate);
+        final String host = a.get("host", "127.0.0.1");
+        final int port = a.getInt("port", 9999);
 
         EventLoopGroup group = new MultiThreadIoEventLoopGroup(a.threads(),
                 t.ioHandler(a.getInt("ring-size", 16384), a.getInt("buffer-ring", 0),
                             a.getInt("buffer-ring-size", 2048)));
+        Counters.trackLoopThreads(loopThreadIds(group));
         // Recorded across every connection. Values are microseconds; three significant digits is
         // plenty for percentiles and keeps the histogram small enough to be free.
         Histogram latency = new Histogram(1, TimeUnit.SECONDS.toMicros(60), 3);
-        AtomicLong requests = new AtomicLong();
-        AtomicLong errors = new AtomicLong();
-        List<Channel> channels = new ArrayList<>(connections);
+        // With --prealloc every event loop records into its own histogram and they are summed once
+        // at the end. HdrHistogram's recordValue on a pre-sized histogram allocates nothing, but
+        // the shared instance is not thread safe, so the default path takes a lock on it per
+        // request; splitting per loop removes the lock without changing what is recorded.
+        final Map<EventExecutor, Histogram> perLoop =
+                prealloc ? new IdentityHashMap<EventExecutor, Histogram>() : null;
+        if (prealloc) {
+            for (EventExecutor e : group) {
+                perLoop.put(e, new Histogram(1, TimeUnit.SECONDS.toMicros(60), 3));
+            }
+        }
+        final AtomicLong requests = new AtomicLong();
+        final AtomicLong errors = new AtomicLong();
+        List<Channel> channels = new ArrayList<Channel>(connections);
+
+        final ByteBuf frame = prealloc ? Prealloc.buildFrame(payload) : null;
+        String warm = prealloc ? warmUp(a, group) : "warm=off";
 
         try {
             Bootstrap b = new Bootstrap()
@@ -211,12 +286,22 @@ public final class LoadTest {
                     .option(ChannelOption.ALLOCATOR, PooledByteBufAllocator.DEFAULT)
                     .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 30000);
             applyZeroCopy(b, t, a);
-            applyBufferTuning(b, a);
+            String recvAlloc = applyBufferTuning(b, a, prealloc);
+
+            System.out.println("CLIENTCFG transport=" + t + " tls=" + a.get("tls", "none")
+                    + " connections=" + connections + " payload=" + payload
+                    + " threads=" + a.threads() + " rate=" + rate
+                    + " prealloc=" + prealloc + " jvmTuned=" + a.flag("jvm-tuned")
+                    + " " + recvAlloc + " " + warm
+                    + " leakDetection=" + Prealloc.leakDetection()
+                    + " " + Prealloc.poolState());
+            System.out.flush();
 
             // ---------------- ramp
-            CountDownLatch ready = new CountDownLatch(connections);
+            final CountDownLatch ready = new CountDownLatch(connections);
+            final Histogram sharedLatency = latency;
             long rampStart = System.nanoTime();
-            List<ChannelFuture> pending = new ArrayList<>(connections);
+            List<ChannelFuture> pending = new ArrayList<ChannelFuture>(connections);
             for (int i = 0; i < connections; i++) {
                 Bootstrap bb = b.clone().handler(new ChannelInitializer<Channel>() {
                     @Override protected void initChannel(Channel ch) {
@@ -226,18 +311,20 @@ public final class LoadTest {
                             // Count the connection ready only once TLS is up, so the ramp number
                             // is connections-and-handshakes rather than TCP connects.
                             h.handshakeFuture().addListener((Future<Channel> f) -> {
-                                if (f.isSuccess()) {
-                                    ready.countDown();
-                                } else {
+                                if (!f.isSuccess()) {
                                     errors.incrementAndGet();
-                                    ready.countDown();
                                 }
+                                ready.countDown();
                             });
                         }
-                        ch.pipeline()
-                          .addLast(new LengthFieldBasedFrameDecoder(1 << 20, 0, 4, 0, 4))
-                          .addLast(new LengthFieldPrepender(4))
-                          .addLast(new RequestLoop(latency, requests, errors, payload, intervalNanos));
+                        ch.pipeline().addLast(prealloc
+                                ? new LengthFieldBasedFrameDecoder(1 << 20, 0, 4, 0, 0)
+                                : new LengthFieldBasedFrameDecoder(1 << 20, 0, 4, 0, 4));
+                        if (!prealloc) {
+                            ch.pipeline().addLast(new LengthFieldPrepender(4));
+                        }
+                        ch.pipeline().addLast(new RequestLoop(sharedLatency, perLoop, requests,
+                                errors, payload, intervalNanos, frame));
                     }
                 });
                 ChannelFuture cf = bb.connect(host, port);
@@ -268,16 +355,23 @@ public final class LoadTest {
                 }
             }
 
-            System.out.printf("RAMP  connections=%d established=%d errors=%d wallMs=%d connPerSec=%.0f%n",
+            System.out.printf("RAMP  connections=%d established=%d errors=%d wallMs=%d connPerSec=%.0f "
+                            + "%s%n",
                     connections, channels.size(), errors.get(),
                     TimeUnit.NANOSECONDS.toMillis(rampNanos),
-                    channels.size() / (rampNanos / 1e9));
+                    channels.size() / (rampNanos / 1e9), Prealloc.poolState());
             System.out.flush();
 
             // ---------------- steady
             latency.reset();
+            if (prealloc) {
+                for (Histogram h : perLoop.values()) {
+                    h.reset();
+                }
+            }
             requests.set(0);
             Counters before = Counters.snapshot();
+            String poolBefore = Prealloc.poolState();
             long steadyStart = System.nanoTime();
             // Stagger the open-loop tickers across one interval, or 10k connections all fire in
             // the same millisecond and the load arrives as a spike rather than at the target rate.
@@ -290,13 +384,21 @@ public final class LoadTest {
             }
             Thread.sleep(TimeUnit.SECONDS.toMillis(durationSec));
             long steadyNanos = System.nanoTime() - steadyStart;
+            // Read the counters at the end of the measured window rather than after the drain, so
+            // the 200 ms quiet period below is not counted as allocation-free time.
+            Counters delta = Counters.snapshot().since(before);
+            String poolAfter = Prealloc.poolState();
             for (Channel ch : channels) {
                 ch.pipeline().get(RequestLoop.class).stop();
             }
             // Let anything in flight land before reading the histogram.
             Thread.sleep(200);
 
-            Counters delta = Counters.snapshot().since(before);
+            if (prealloc) {
+                for (Histogram h : perLoop.values()) {
+                    latency.add(h);
+                }
+            }
             double seconds = steadyNanos / 1e9;
             double achieved = requests.get() / seconds;
             // Percentiles from an open-loop run only mean anything if the offered rate was actually
@@ -310,10 +412,11 @@ public final class LoadTest {
                                         100 * achieved / rate);
             System.out.printf(
                 "STEADY durationS=%.1f requests=%d reqPerSec=%.0f targetPerSec=%d errors=%d "
-                + "p50us=%d p99us=%d p999us=%d maxUs=%d mode=%s%n",
+                + "p50us=%d p99us=%d p999us=%d maxUs=%d mode=%s %s poolBefore=[%s] poolAfter=[%s]%n",
                 seconds, requests.get(), achieved, rate, errors.get(),
                 latency.getValueAtPercentile(50.0), latency.getValueAtPercentile(99.0),
-                latency.getValueAtPercentile(99.9), latency.getMaxValue(), mode);
+                latency.getValueAtPercentile(99.9), latency.getMaxValue(), mode,
+                delta.perRequest(requests.get()), poolBefore, poolAfter);
             // Where the client spent itself. The server prints its own on shutdown; the two are
             // reported separately because they are pinned to different cores and answer different
             // questions.
@@ -345,31 +448,53 @@ public final class LoadTest {
      * target; the caller checks that and says so when it did not.
      */
     static final class RequestLoop extends ChannelInboundHandlerAdapter {
-        private final Histogram latency;
+        private final Histogram shared;
+        private final Map<EventExecutor, Histogram> perLoop;   // null unless --prealloc
         private final AtomicLong requests;
         private final AtomicLong errors;
         private final int payload;
         private final long intervalNanos;   // 0 => closed loop
+        /** The one frame every connection sends, or null in the default allocating path. */
+        private final ByteBuf frame;
         private volatile boolean running;
         private long closedLoopSentAt;
         /** Intended send times, FIFO: the server echoes in order on one connection. */
-        private final ArrayDeque<Long> pending = new ArrayDeque<>();
+        private final ArrayDeque<Long> pending;
+        /**
+         * The same thing without the boxing. {@code ArrayDeque<Long>} boxes a nanotime value on
+         * every open-loop request, and a nanotime is far outside the {@code Long} cache, so it is a
+         * guaranteed heap allocation per request on the axis being measured.
+         */
+        private final long[] dueRing;
+        private int dueHead;
+        private int dueTail;
+        private Histogram mine;
         private long nextDue;
         private ScheduledFuture<?> ticker;
 
-        RequestLoop(Histogram latency, AtomicLong requests, AtomicLong errors, int payload,
-                    long intervalNanos) {
-            this.latency = latency;
+        RequestLoop(Histogram shared, Map<EventExecutor, Histogram> perLoop, AtomicLong requests,
+                    AtomicLong errors, int payload, long intervalNanos, ByteBuf frame) {
+            this.shared = shared;
+            this.perLoop = perLoop;
             this.requests = requests;
             this.errors = errors;
             this.payload = payload;
             this.intervalNanos = intervalNanos;
+            this.frame = frame;
+            this.pending = frame == null ? new ArrayDeque<Long>() : null;
+            this.dueRing = frame == null || intervalNanos == 0 ? null : new long[1024];
         }
 
         void start(Channel ch, long staggerNanos) {
+            if (perLoop != null) {
+                mine = perLoop.get(ch.eventLoop());
+                if (mine == null) {
+                    throw new IllegalStateException("no histogram for event loop " + ch.eventLoop());
+                }
+            }
             running = true;
             if (intervalNanos == 0) {
-                ch.eventLoop().execute(() -> sendClosed(ch));
+                ch.eventLoop().execute(() -> send(ch));
             } else {
                 nextDue = System.nanoTime() + staggerNanos;
                 ticker = ch.eventLoop().scheduleAtFixedRate(
@@ -384,12 +509,22 @@ public final class LoadTest {
             }
         }
 
-        private void sendClosed(Channel ch) {
+        private void send(Channel ch) {
             if (!running || !ch.isActive()) {
                 return;
             }
-            closedLoopSentAt = System.nanoTime();
-            ch.writeAndFlush(ch.alloc().buffer(payload).writeZero(payload));
+            if (intervalNanos == 0) {
+                closedLoopSentAt = System.nanoTime();
+            }
+            if (frame == null) {
+                ch.writeAndFlush(ch.alloc().buffer(payload).writeZero(payload));
+            } else {
+                // retainedSlice on a pooled buffer goes to PooledSlicedByteBuf.newInstance, which
+                // comes off a Recycler: no allocation, and no memset of the payload either. The
+                // master frame is retained for the process lifetime and each slice releases one
+                // reference when the write completes.
+                ch.writeAndFlush(frame.retainedSlice(), ch.voidPromise());
+            }
         }
 
         private void tick(Channel ch) {
@@ -400,24 +535,48 @@ public final class LoadTest {
             // lateness belongs in the latency figure rather than being quietly discarded.
             long due = nextDue;
             nextDue += intervalNanos;
-            pending.addLast(due);
-            ch.writeAndFlush(ch.alloc().buffer(payload).writeZero(payload));
+            if (dueRing == null) {
+                pending.addLast(due);
+            } else {
+                dueRing[dueTail & (dueRing.length - 1)] = due;
+                dueTail++;
+                if (dueTail - dueHead > dueRing.length) {
+                    // More than 1024 requests outstanding on one connection means the run is not
+                    // measuring what it claims to; losing the oldest due time silently would flatter
+                    // the percentiles.
+                    throw new IllegalStateException("open-loop backlog exceeded " + dueRing.length
+                            + " on one connection; the target rate is unachievable");
+                }
+            }
+            send(ch);
         }
 
         @Override public void channelRead(ChannelHandlerContext ctx, Object msg) {
             ((ByteBuf) msg).release();
             long now = System.nanoTime();
-            long from = intervalNanos == 0 ? closedLoopSentAt
-                                           : (pending.isEmpty() ? now : pending.pollFirst());
+            long from;
+            if (intervalNanos == 0) {
+                from = closedLoopSentAt;
+            } else if (dueRing == null) {
+                from = pending.isEmpty() ? now : pending.pollFirst();
+            } else {
+                from = dueHead == dueTail ? now : dueRing[dueHead++ & (dueRing.length - 1)];
+            }
             long us = TimeUnit.NANOSECONDS.toMicros(now - from);
-            // The histogram is shared across event loop threads and is not thread safe; a lost
-            // count here would quietly bias the percentiles, so take the lock.
-            synchronized (latency) {
-                latency.recordValue(Math.max(1, us));
+            if (mine != null) {
+                // One histogram per event loop, so no lock and no cross-thread sharing. Merged once
+                // at the end of the run.
+                mine.recordValue(Math.max(1, us));
+            } else {
+                // The histogram is shared across event loop threads and is not thread safe; a lost
+                // count here would quietly bias the percentiles, so take the lock.
+                synchronized (shared) {
+                    shared.recordValue(Math.max(1, us));
+                }
             }
             requests.incrementAndGet();
             if (intervalNanos == 0) {
-                sendClosed(ctx.channel());
+                send(ctx.channel());
             }
         }
 
@@ -427,33 +586,52 @@ public final class LoadTest {
         }
     }
 
+    // ------------------------------------------------------------------ wiring
+
     /**
-     * How much pooled direct memory the allocator is holding, and how many arena chunks back it.
+     * Thread ids of the event loops, so allocation can be attributed to them.
      *
-     * <p>Added because the 256 KB profile showed the io_uring server reaching
-     * {@code PoolArena$DirectArena.newChunk -> ByteBuffer.allocateDirect} continuously during steady
-     * state (1201 samples) while the epoll server reached it 7 times. A new chunk is an mmap plus a
-     * zeroing pass, which is exactly the {@code do_user_addr_fault} / {@code clear_page_erms} /
-     * {@code page_counter_try_charge} cluster that separates the two kernel profiles.
-     *
-     * <p>Samples are not proof of a rate, though, so this reports the quantity directly. The
-     * hypothesis it tests: a completion-based transport has to commit a receive buffer when it
-     * SUBMITS the read, not when data arrives, so a buffer is held for every read in flight rather
-     * than only for reads that are ready. At 500 connections and a 256 KB adaptive receive buffer
-     * that is a different order of live memory, and the pool answers by growing.
+     * <p>Collected by running a task on each loop rather than by matching thread names: netty's
+     * naming has changed across versions and a name-matching scheme that stopped matching would
+     * report a confident zero.
      */
-    private static String poolState() {
-        PooledByteBufAllocator alloc = PooledByteBufAllocator.DEFAULT;
-        int chunks = 0;
-        for (io.netty.buffer.PoolArenaMetric arena : alloc.metric().directArenas()) {
-            for (io.netty.buffer.PoolChunkListMetric list : arena.chunkLists()) {
-                for (io.netty.buffer.PoolChunkMetric ignored : list) {
-                    chunks++;
-                }
-            }
+    private static long[] loopThreadIds(EventLoopGroup group) {
+        List<Future<Long>> futures = new ArrayList<Future<Long>>();
+        for (EventExecutor e : group) {
+            futures.add(e.submit(() -> Thread.currentThread().getId()));
         }
-        return String.format("usedDirectMb=%d pooledChunks=%d",
-                alloc.metric().usedDirectMemory() / (1024 * 1024), chunks);
+        long[] ids = new long[futures.size()];
+        for (int i = 0; i < ids.length; i++) {
+            ids[i] = futures.get(i).syncUninterruptibly().getNow();
+        }
+        return ids;
+    }
+
+    /**
+     * Sizes and runs the arena warm-up, or aborts saying why it cannot.
+     *
+     * <p>The default size is two buffers per connection, which is roughly what an echo holds live:
+     * one accumulating on the read side and one queued on the write side. It is a starting point,
+     * not a claim; {@code --warmup-mb} overrides it and the READY line reports what was actually
+     * pinned so the choice is visible in every log.
+     */
+    private static String warmUp(Args a, EventLoopGroup group) {
+        int payload = a.getInt("payload", -1);
+        if (payload <= 0) {
+            throw new IllegalStateException("--prealloc needs --payload so the warm-up allocates in "
+                    + "the size class the run will use; got " + payload);
+        }
+        long mb = a.getLong("warmup-mb", -1);
+        if (mb < 0) {
+            int conns = a.getInt("connections", -1);
+            if (conns <= 0) {
+                throw new IllegalStateException("--prealloc needs --warmup-mb, or --connections to "
+                        + "derive it from. Refusing to run a cell labelled prealloc with an unwarmed "
+                        + "arena.");
+            }
+            mb = Math.max(16L, 2L * conns * (payload + 4) / (1024 * 1024));
+        }
+        return Prealloc.warmArenas(group, mb * 1024 * 1024, payload + 4);
     }
 
     /**
@@ -487,10 +665,24 @@ public final class LoadTest {
      *       deficit. A larger SO_SNDBUF means fewer partial writes; if the cliff follows sndbuf on
      *       io_uring while epoll stays flat, the write path is the mechanism.</li>
      * </ul>
+     *
+     * <p><b>Why {@code --prealloc} does not size the receive buffer to the payload.</b> The obvious
+     * pre-allocation move is a {@code FixedRecvByteBufAllocator} of {@code payload + 4}, and it is
+     * available as {@code --fixed-rcvbuf}. It is not what {@code --prealloc} does, because the
+     * receive buffer ceiling is already the established mechanism for the size cliff -- 16 KB, 64 KB
+     * and 512 KB give 13,586 / 17,257 / 23,458 req/s at a 64 KB payload -- so folding it into the
+     * pre-allocation flag would confound "removing the harness's allocation closed the gap" with
+     * "raising the read size closed the gap", and the second is already known to be true. What
+     * {@code --prealloc} does instead is fix the receive buffer at the adaptive allocator's own
+     * default ceiling, 64 KB, which leaves reads per message exactly where the default put them and
+     * only removes the run-to-run variation from the adaptive guess moving mid-run.
+     *
+     * @return a description of the receive allocator actually installed, for the startup line
      */
-    private static void applyBufferTuning(AbstractBootstrap<?, ?> b, Args a) {
+    private static String applyBufferTuning(AbstractBootstrap<?, ?> b, Args a, boolean prealloc) {
         int sndbuf = a.getInt("sndbuf", 0);
         int rcvbufMax = a.getInt("rcvbuf-max", 0);
+        int fixedRcvbuf = a.getInt("fixed-rcvbuf", 0);
         boolean child = b instanceof ServerBootstrap;
         if (sndbuf > 0) {
             if (child) {
@@ -499,15 +691,33 @@ public final class LoadTest {
                 b.option(ChannelOption.SO_SNDBUF, sndbuf);
             }
         }
-        if (rcvbufMax > 0) {
-            AdaptiveRecvByteBufAllocator bounded =
-                    new AdaptiveRecvByteBufAllocator(64, Math.min(2048, rcvbufMax), rcvbufMax);
-            if (child) {
-                ((ServerBootstrap) b).childOption(ChannelOption.RCVBUF_ALLOCATOR, bounded);
-            } else {
-                b.option(ChannelOption.RCVBUF_ALLOCATOR, bounded);
-            }
+        if (rcvbufMax > 0 && fixedRcvbuf > 0) {
+            throw new IllegalArgumentException("--rcvbuf-max and --fixed-rcvbuf are two different "
+                    + "receive allocators; pick one");
         }
+        RecvByteBufAllocator recv;
+        String description;
+        if (rcvbufMax > 0) {
+            recv = new AdaptiveRecvByteBufAllocator(64, Math.min(2048, rcvbufMax), rcvbufMax);
+            description = "recvAlloc=adaptive-bounded:" + rcvbufMax;
+        } else if (fixedRcvbuf > 0) {
+            recv = new FixedRecvByteBufAllocator(fixedRcvbuf);
+            description = "recvAlloc=fixed:" + fixedRcvbuf;
+        } else if (prealloc) {
+            // AdaptiveRecvByteBufAllocator's own default maximum. Same read size the default path
+            // converges to, so read count per message is unchanged; see the note above.
+            int size = Math.min(a.getInt("payload", 65536) + 4, 65536);
+            recv = new FixedRecvByteBufAllocator(size);
+            description = "recvAlloc=fixed:" + size;
+        } else {
+            return "recvAlloc=adaptive-default";
+        }
+        if (child) {
+            ((ServerBootstrap) b).childOption(ChannelOption.RCVBUF_ALLOCATOR, recv);
+        } else {
+            b.option(ChannelOption.RCVBUF_ALLOCATOR, recv);
+        }
+        return description;
     }
 
     private static void applyZeroCopy(AbstractBootstrap<?, ?> b, Transports t, Args a) {

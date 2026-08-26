@@ -18,6 +18,7 @@ package io.netty.loadtest;
 import java.io.IOException;
 import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
+import java.lang.management.ThreadMXBean;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 
@@ -42,21 +43,77 @@ final class Counters {
 
     private static final long CLK_TCK = 100;   // _SC_CLK_TCK, 100 on every Linux worth running this on
 
+    /**
+     * Event loop thread ids, captured once so allocation can be attributed to the threads that do
+     * the work.
+     *
+     * <p>Deliberately not "every live thread": {@code getThreadAllocatedBytes} returns -1 for a
+     * thread that has exited, so a whole-process sum silently loses the allocation of anything that
+     * died between two snapshots and can produce a negative delta. The event loops live for the
+     * entire run, so their sum is a difference of two comparable numbers. The whole-process figure
+     * is reported alongside it to catch allocation that happens somewhere else.
+     */
+    private static volatile long[] loopThreadIds = new long[0];
+
+    private static final ThreadMXBean THREADS = ManagementFactory.getThreadMXBean();
+
+    private static final com.sun.management.ThreadMXBean ALLOC_THREADS =
+            THREADS instanceof com.sun.management.ThreadMXBean
+                    && ((com.sun.management.ThreadMXBean) THREADS).isThreadAllocatedMemorySupported()
+                    ? (com.sun.management.ThreadMXBean) THREADS : null;
+
+    static {
+        if (ALLOC_THREADS != null && !ALLOC_THREADS.isThreadAllocatedMemoryEnabled()) {
+            ALLOC_THREADS.setThreadAllocatedMemoryEnabled(true);
+        }
+    }
+
+    /** Called once, after the event loops exist and before the ramp. */
+    static void trackLoopThreads(long[] ids) {
+        loopThreadIds = ids;
+    }
+
     final long utimeMs;
     final long stimeMs;
     final long gcCount;
     final long gcMillis;
     final long voluntaryCtxt;
     final long involuntaryCtxt;
+    /** Bytes allocated on the heap by the event loop threads, cumulative since their start. */
+    final long allocLoopBytes;
+    /** The same for every live thread, which catches anything allocating off the event loops. */
+    final long allocAllBytes;
 
     private Counters(long utimeMs, long stimeMs, long gcCount, long gcMillis,
-                     long voluntaryCtxt, long involuntaryCtxt) {
+                     long voluntaryCtxt, long involuntaryCtxt,
+                     long allocLoopBytes, long allocAllBytes) {
         this.utimeMs = utimeMs;
         this.stimeMs = stimeMs;
         this.gcCount = gcCount;
         this.gcMillis = gcMillis;
         this.voluntaryCtxt = voluntaryCtxt;
         this.involuntaryCtxt = involuntaryCtxt;
+        this.allocLoopBytes = allocLoopBytes;
+        this.allocAllBytes = allocAllBytes;
+    }
+
+    /**
+     * Heap allocation only. Direct memory is invisible here, which is exactly how the original
+     * problem hid: {@code gcCount} stayed low through a run whose real cost was an mmap and a
+     * zeroing pass per pooled chunk. Read this next to {@code pooledChunks} from the pool metric,
+     * never on its own.
+     */
+    private static long allocatedBytes(long[] ids) {
+        if (ALLOC_THREADS == null || ids.length == 0) {
+            return -1;
+        }
+        long sum = 0;
+        for (long b : ALLOC_THREADS.getThreadAllocatedBytes(ids)) {
+            if (b > 0) {
+                sum += b;
+            }
+        }
+        return sum;
     }
 
     static Counters snapshot() {
@@ -114,7 +171,8 @@ final class Counters {
                 gcMillis += t;
             }
         }
-        return new Counters(utime, stime, gcCount, gcMillis, vol, invol);
+        return new Counters(utime, stime, gcCount, gcMillis, vol, invol,
+                            allocatedBytes(loopThreadIds), allocatedBytes(THREADS.getAllThreadIds()));
     }
 
     /** This minus an earlier snapshot. */
@@ -122,7 +180,9 @@ final class Counters {
         return new Counters(utimeMs - start.utimeMs, stimeMs - start.stimeMs,
                             gcCount - start.gcCount, gcMillis - start.gcMillis,
                             voluntaryCtxt - start.voluntaryCtxt,
-                            involuntaryCtxt - start.involuntaryCtxt);
+                            involuntaryCtxt - start.involuntaryCtxt,
+                            allocLoopBytes - start.allocLoopBytes,
+                            allocAllBytes - start.allocAllBytes);
     }
 
     /**
@@ -131,14 +191,18 @@ final class Counters {
      */
     String perRequest(long requests) {
         if (requests <= 0) {
-            return "utimeUsPerReq=- stimeUsPerReq=-";
+            return "utimeUsPerReq=- stimeUsPerReq=- allocBytesPerReq=- allocAllBytesPerReq=-";
         }
-        return String.format("utimeUsPerReq=%.2f stimeUsPerReq=%.2f",
-                utimeMs * 1000.0 / requests, stimeMs * 1000.0 / requests);
+        return String.format("utimeUsPerReq=%.2f stimeUsPerReq=%.2f allocBytesPerReq=%.1f "
+                        + "allocAllBytesPerReq=%.1f",
+                utimeMs * 1000.0 / requests, stimeMs * 1000.0 / requests,
+                (double) allocLoopBytes / requests, (double) allocAllBytes / requests);
     }
 
     @Override public String toString() {
-        return String.format("utimeMs=%d stimeMs=%d gcCount=%d gcMs=%d volCtxt=%d involCtxt=%d",
-                utimeMs, stimeMs, gcCount, gcMillis, voluntaryCtxt, involuntaryCtxt);
+        return String.format("utimeMs=%d stimeMs=%d gcCount=%d gcMs=%d volCtxt=%d involCtxt=%d "
+                        + "allocLoopKb=%d allocAllKb=%d",
+                utimeMs, stimeMs, gcCount, gcMillis, voluntaryCtxt, involuntaryCtxt,
+                allocLoopBytes / 1024, allocAllBytes / 1024);
     }
 }
