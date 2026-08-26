@@ -15,10 +15,15 @@
 # ceiling; raising it to 512 KB lets one read take a whole frame but grows the footprint 8x. The
 # footprint mechanism predicts the cap helps io_uring; a per-operation mechanism predicts the
 # opposite, because smaller reads mean more operations.
+#
+# EXTRA exists so the whole discriminator can be re-run with --prealloc, which is the only way to
+# tell whether the read-count conclusion below was a property of netty or of a load generator that
+# memset its payload on every request. Both sides get it, so a cell is never half-applied.
 set -u
-JAR=/home/fred/tls-matrix/loadtest-pin.jar
+JAR=${JAR:-/home/fred/tls-matrix/loadtest-pin.jar}
 IMG=eclipse-temurin:21-jdk-alpine
-DUR=10
+DUR=${DUR:-10}
+EXTRA=${EXTRA:-}
 PAY=${1:?payload bytes}
 CONNS=${2:?connections}
 ROUNDS=${3:-5}
@@ -44,7 +49,7 @@ one() {  # one <label> <transport> <extra server/client args or ->
     --security-opt seccomp=unconfined --ulimit nofile=65536:65536 --ulimit memlock=-1 \
     -v "$JAR:/app/lt.jar:ro" "$IMG" \
     java -jar /app/lt.jar server --transport="$t" --tls=none --port=$PORT \
-         --threads=4 --backlog=8192 $xargs >/dev/null
+         --threads=4 --backlog=8192 --payload=$PAY --connections=$CONNS $EXTRA $xargs >/dev/null
   local ok=0
   for i in $(seq 1 60); do docker logs "$name" 2>&1 | grep -q '^READY' && { ok=1; break; }; sleep 0.5; done
   if [ "$ok" = 0 ]; then
@@ -53,14 +58,22 @@ one() {  # one <label> <transport> <extra server/client args or ->
     docker rm -f "$name" >/dev/null 2>&1; return
   fi
 
-  timeout 150 docker run --rm --network=host --cpuset-cpus=2,3,6,7 \
+  timeout 200 docker run --rm --network=host --cpuset-cpus=2,3,6,7 \
     --security-opt seccomp=unconfined --ulimit nofile=65536:65536 --ulimit memlock=-1 \
     -v "$JAR:/app/lt.jar:ro" "$IMG" \
     java -jar /app/lt.jar client --transport="$t" --tls=none --host=127.0.0.1 --port=$PORT \
-      --connections=$CONNS --duration=$DUR --payload=$PAY --threads=4 $xargs > /tmp/$TAG.out 2>&1
+      --connections=$CONNS --duration=$DUR --payload=$PAY --threads=4 $EXTRA $xargs \
+      > /tmp/$TAG.out 2>&1
 
   local rps mem
   rps=$(grep '^STEADY' /tmp/$TAG.out | sed -E 's/.*reqPerSec=([0-9]+).*/\1/')
+  # EXTRA is only ever used to add --prealloc, and a cell that silently ran without it would be
+  # worse than no cell at all.
+  if echo "$EXTRA" | grep -q prealloc && ! grep -q 'prealloc=true' /tmp/$TAG.out; then
+    printf '%-11s' CLIMODE
+    head -3 /tmp/$TAG.out >> "$ERRS"
+    docker rm -f "$name" >/dev/null 2>&1; return
+  fi
   mem=$(docker logs "$name" 2>&1 | grep -o 'usedDirectMb=[0-9]*' | cut -d= -f2 \
         | sort -n | awk 'NR==1{min=$1} {max=$1} END{if (NR) printf "%d-%dMB", min, max}')
   if [ -z "${rps:-}" ]; then

@@ -616,6 +616,11 @@ public final class LoadTest {
      * pinned so the choice is visible in every log.
      */
     private static String warmUp(Args a, EventLoopGroup group) {
+        if (a.flag("no-warm")) {
+            // --prealloc bundles three separable things and the sweep needs to know which one moved
+            // the number. Reported in the startup line so a log always says which were in force.
+            return "warm=off(--no-warm)";
+        }
         int payload = a.getInt("payload", -1);
         if (payload <= 0) {
             throw new IllegalStateException("--prealloc needs --payload so the warm-up allocates in "
@@ -703,7 +708,7 @@ public final class LoadTest {
         } else if (fixedRcvbuf > 0) {
             recv = new FixedRecvByteBufAllocator(fixedRcvbuf);
             description = "recvAlloc=fixed:" + fixedRcvbuf;
-        } else if (prealloc) {
+        } else if (prealloc && !a.flag("no-fixed-rcvbuf")) {
             // AdaptiveRecvByteBufAllocator's own default maximum. Same read size the default path
             // converges to, so read count per message is unchanged; see the note above.
             int size = Math.min(a.getInt("payload", 65536) + 4, 65536);
