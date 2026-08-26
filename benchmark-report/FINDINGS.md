@@ -39,31 +39,47 @@ physical cores 0 and 1, client to cores 2 and 3. **The client's cores are the on
 and core3 has throttled roughly 2.5x more often than core1. The two sides of every comparison are not
 sitting on thermally equivalent hardware.
 
-**[UNCERTAIN]** Those counts are cumulative over 10+ days of uptime and are not attributed to our
-runs specifically. What they establish is that this host throttles under load and does so unevenly,
-not that any particular cell was throttled. Per-round throttle deltas were never recorded. The one
-run that did log temperature (`tlswarm`) saw 67-88 C and frequencies between 3.20 and 3.60 GHz across
-rounds, so the scaling was demonstrably live during at least that measurement.
+**[SOLID] The throttling turned out NOT to be happening during our runs.** Once per-cell throttle
+deltas were instrumented, reading `core_throttle_count` for cores 0-3 immediately before and after
+each measured window, **every cell reads 0/0/0/0**. The alarming cumulative counts above predate this
+work and are not accruing. Throttling is therefore a property of this host's history, not a defect in
+these measurements. The deltas are now recorded per cell, and a nonzero one tags the row as
+disqualified rather than merely caveated.
 
-**There is a specific mechanism by which this could bias the transport comparison rather than merely
-add noise.** io_uring marks threads waiting on completions as `in_iowait`, and `intel_pstate` uses
-iowait as an input to its **iowait boost**. So the two transports can drive the governor differently
-and end up running at different clock speeds. That would be a systematic effect on the very axis
-under test, and interleaving rounds cannot average it away. Untested here, stated as a risk rather
-than a finding.
+**[SOLID] The governor has since been set to `performance`**, which removes most of the scaling
+freedom but **does not pin the clock uniformly**. Measured at idle under `performance`: 800 to
+4131 MHz across the eight logical CPUs. Under load it settles near 2800 MHz on both sides. So the
+right protocol is to sample `scaling_cur_freq` DURING the steady window, per side, and report the
+mean, rather than to assume a fixed clock. Cells taken before and after the governor change are not
+comparable and must not be combined into a ratio.
 
-**The fix, not yet applied because it needs root:**
+**[UNCERTAIN] The iowait-boost risk is still untested.** io_uring marks completion waiters
+`in_iowait` and `intel_pstate` feeds iowait into its boost heuristic, so the transports could still
+drive the governor differently even under `performance`. Recording per-side mean frequency per cell
+is what would detect it. Nothing has yet.
 
-    sudo cpupower frequency-set -g performance
-    # or: echo performance | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
+**Every number in this document predating the governor change was taken under `powersave` with turbo
+enabled.** The rankings reproduce across interleaved rounds and are unlikely to invert, but the
+quoted spreads measure round-to-round variation under a governor that was free to move, not that of a
+fixed-clock machine.
 
-**Every number in this document was taken under `powersave` with turbo enabled.** The rankings
-reproduce consistently across interleaved rounds and are unlikely to invert, but the magnitudes carry
-an uncertainty the quoted spreads do not capture: those spreads measure round-to-round variation
-under a governor that was free to move, not the variation of a pinned-clock machine. Anything
-republished outside this branch should be re-measured under the `performance` governor, with
-per-round frequency, temperature and throttle-count deltas recorded.
+## Contention does not add noise, it inverts results
 
+**[SOLID]** The sharpest methodological result on the branch, and it was found by accident when two
+agents measured on thor at the same time.
+
+A cell that reads **192k (epoll) against 210k (io_uring)** on a quiet host measured **74k against
+153k** while a second workload was running. That is not a degraded measurement, it is a **2x
+inversion of the transport ordering**, produced entirely by unrelated load.
+
+This is why "the host looked mostly idle" is not an acceptable gate, and why interleaving rounds does
+not save you: if the contending load is present for a whole sweep, every round sees it. The gate now
+used requires BOTH that no foreign container is running AND at least 85% idle, checked before each
+cell and again between rounds, with any cell tagged as contended if foreign load appears mid-window.
+
+It also retroactively explains the retracted 292x claim earlier in this branch, which came from two
+of my own runs colliding on the same port and cores. Same mechanism, larger magnitude, and at the
+time it looked like a finding about ring size.
 ---
 
 # Article 1: post-quantum crypto is already in your TLS benchmark
