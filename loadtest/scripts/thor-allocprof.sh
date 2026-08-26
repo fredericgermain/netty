@@ -22,6 +22,10 @@ AP=${AP:-/home/fred/tls-matrix/async-profiler-4.5-linux-x64}
 IMG=eclipse-temurin:21-jdk
 OUT=${OUT:-/home/fred/tls-matrix/allocprof}
 DUR=${DUR:-20}
+# Leak detection allocates a TraceRecord per sampled buffer and shows up in its own profile, so a
+# measurement run turns it off. netty defaults it to "simple", which samples roughly one buffer in
+# 128 and is not free at 50,000 requests a second.
+LEAK=${LEAK:-disabled}
 PAY=${1:?payload bytes}
 CONNS=${2:?connections}
 
@@ -39,7 +43,7 @@ echo "port=$PORT payload=$PAY connections=$CONNS duration=$DUR out=$OUT"
 # second against a 20 s steady window, so it is a rounding error rather than a correction, but it
 # is there and the numbers should not be quoted to the last percent because of it.
 agent() {  # agent <file>
-  echo "-agentpath:/ap/lib/libasyncProfiler.so=start,event=alloc,flat=40,total,file=/out/$1"
+  echo "-agentpath:/ap/lib/libasyncProfiler.so=start,event=alloc,flat=25,traces=25,total,file=/out/$1"
 }
 
 one() {  # one <label> <transport> <mode: base|pre>
@@ -52,7 +56,7 @@ one() {  # one <label> <transport> <mode: base|pre>
   docker run -d --rm --name "$name" --network=host --cpuset-cpus=0,1,4,5 \
     --security-opt seccomp=unconfined --ulimit nofile=65536:65536 --ulimit memlock=-1 \
     -v "$JAR:/app/lt.jar:ro" -v "$AP:/ap:ro" -v "$OUT:/out" "$IMG" \
-    java -XX:+UnlockDiagnosticVMOptions -XX:+DebugNonSafepoints "$(agent "$label-srv.txt")" \
+    java -Dio.netty.leakDetection.level=$LEAK -XX:+UnlockDiagnosticVMOptions -XX:+DebugNonSafepoints "$(agent "$label-srv.txt")" \
       -jar /app/lt.jar server --transport="$t" --tls=none --port=$PORT \
       --threads=4 --backlog=8192 --payload=$PAY --connections=$CONNS $flags >/dev/null
 
@@ -66,7 +70,7 @@ one() {  # one <label> <transport> <mode: base|pre>
   timeout 240 docker run --rm --network=host --cpuset-cpus=2,3,6,7 \
     --security-opt seccomp=unconfined --ulimit nofile=65536:65536 --ulimit memlock=-1 \
     -v "$JAR:/app/lt.jar:ro" -v "$AP:/ap:ro" -v "$OUT:/out" "$IMG" \
-    java -XX:+UnlockDiagnosticVMOptions -XX:+DebugNonSafepoints "$(agent "$label-cli.txt")" \
+    java -Dio.netty.leakDetection.level=$LEAK -XX:+UnlockDiagnosticVMOptions -XX:+DebugNonSafepoints "$(agent "$label-cli.txt")" \
       -jar /app/lt.jar client --transport="$t" --tls=none --host=127.0.0.1 --port=$PORT \
       --connections=$CONNS --duration=$DUR --payload=$PAY --threads=4 $flags \
       > "$OUT/$label-cli.out" 2>&1
@@ -85,6 +89,6 @@ one ur-pre    io_uring pre
 for f in "$OUT"/*.txt; do
   echo
   echo "################ $f"
-  head -30 "$f"
+  head -120 "$f"
 done
 echo ALLOCPROF_DONE
