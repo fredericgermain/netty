@@ -356,6 +356,50 @@ direct memory epoll needs at the same load, or cap the receive buffer, and the c
 engage. Untested here, and stated as a prediction rather than a result.
 
 
+## The pinning was wrong, and correcting it changes nothing
+
+Everything above ran server on cpus 0-3 and client on 4-7 on the assumption those were disjoint
+cores. thor's topology says otherwise: `thread_siblings_list` is 0,4 / 1,5 / 2,6 / 3,7, so the two
+sides were hyperthread siblings sharing the SAME four physical cores. Corrected pinning gives each
+side two whole physical cores with both their threads (server 0,1,4,5; client 2,3,6,7). Both
+pinnings, five interleaved rounds, 64 KB payload, 2000 connections:
+
+| cell | rounds | median |
+|---|---|---|
+| epoll, old pinning | 38,728 - 42,683 | 41,504 |
+| io_uring, old pinning | 17,285 - 18,964 | 18,139 |
+| epoll, corrected | 32,584 - 42,017 | 34,959 |
+| io_uring, corrected | 16,992 - 18,135 | 17,794 |
+
+io_uring is indifferent to the pinning (ranges overlap). epoll's median drops under the corrected
+pinning with a spread wide enough that the drop is marginal, but in no round under either pinning
+does the transport ordering change, and the ratio moves from 44% to 51% only because epoll got
+noisier. **The size cliff is not an SMT artifact.** If anything the old pinning flattered epoll:
+hard-partitioning the cores takes away the slack a busier side could steal from its sibling. The
+earlier numbers stand, with the caveat that their absolute values carry the shared-core condition.
+
+## Raising the cache ceiling: real on both transports, and the ratio does not close
+
+`io.netty.allocator.maxCachedBufferCapacity` defaults to 32 KB, so at 64 KB every receive and echo
+buffer bypasses the thread-local cache and hits the arena. If the cliff is purely the pool working
+set, raising the ceiling past the payload should mostly fix io_uring and barely touch epoll, whose
+arena never grows. Corrected pinning, ceiling raised to 256 KB on both sides, same sweep:
+
+| cell | rounds | median | server pool across run |
+|---|---|---|---|
+| epoll | 32,584 - 42,017 | 34,959 | flat 16 MB every round |
+| io_uring | 16,992 - 18,135 | 17,794 | thrashing 16 - 212 MB |
+| epoll + 256 KB ceiling | 41,594 - 45,175 | 43,745 | flat 16 MB |
+| io_uring + 256 KB ceiling | 19,179 - 21,421 | 20,442 | 96 - 212 MB, floor up to ~100 MB |
+
+Both effects are real: io_uring gains 15% and wins all five paired rounds with non-overlapping
+ranges; epoll gains about as much (arena allocations above the ceiling take the arena lock even
+when no chunk is mmapped, and the flag removes that on both transports). The ratio ends at 47%
+against 51% baseline. **A sixth of the gap, not the fix.** The pool churn is a contributor with a
+measured size, and the footprint mechanism cannot be the whole cliff, which is what motivates the
+write-path experiment below.
+
+
 ## Three corrections from the literature, all verified here
 
 A parallel review of the io_uring literature against these findings turned up three things that
