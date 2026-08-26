@@ -141,8 +141,9 @@ public final class LoadTest {
             // comparison. Any two lines give a delta of both CPU and requests, so the caller can
             // bracket whichever window it cares about.
             worker.next().scheduleAtFixedRate(() -> System.out.printf(
-                    "SERVERCPU tMs=%d requests=%d %s%n",
-                    System.currentTimeMillis(), SERVER_REQUESTS.get(), Counters.snapshot()),
+                    "SERVERCPU tMs=%d requests=%d %s %s%n",
+                    System.currentTimeMillis(), SERVER_REQUESTS.get(), Counters.snapshot(),
+                    poolState()),
                     2, 2, TimeUnit.SECONDS);
 
             System.out.println("READY transport=" + t + " tls=" + a.get("tls", "none")
@@ -419,6 +420,35 @@ public final class LoadTest {
             errors.incrementAndGet();
             ctx.close();
         }
+    }
+
+    /**
+     * How much pooled direct memory the allocator is holding, and how many arena chunks back it.
+     *
+     * <p>Added because the 256 KB profile showed the io_uring server reaching
+     * {@code PoolArena$DirectArena.newChunk -> ByteBuffer.allocateDirect} continuously during steady
+     * state (1201 samples) while the epoll server reached it 7 times. A new chunk is an mmap plus a
+     * zeroing pass, which is exactly the {@code do_user_addr_fault} / {@code clear_page_erms} /
+     * {@code page_counter_try_charge} cluster that separates the two kernel profiles.
+     *
+     * <p>Samples are not proof of a rate, though, so this reports the quantity directly. The
+     * hypothesis it tests: a completion-based transport has to commit a receive buffer when it
+     * SUBMITS the read, not when data arrives, so a buffer is held for every read in flight rather
+     * than only for reads that are ready. At 500 connections and a 256 KB adaptive receive buffer
+     * that is a different order of live memory, and the pool answers by growing.
+     */
+    private static String poolState() {
+        PooledByteBufAllocator alloc = PooledByteBufAllocator.DEFAULT;
+        int chunks = 0;
+        for (io.netty.buffer.PoolArenaMetric arena : alloc.metric().directArenas()) {
+            for (io.netty.buffer.PoolChunkListMetric list : arena.chunkLists()) {
+                for (io.netty.buffer.PoolChunkMetric ignored : list) {
+                    chunks++;
+                }
+            }
+        }
+        return String.format("usedDirectMb=%d pooledChunks=%d",
+                alloc.metric().usedDirectMemory() / (1024 * 1024), chunks);
     }
 
     /**
