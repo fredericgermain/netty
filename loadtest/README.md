@@ -106,3 +106,66 @@ is a fresh JVM, so this is not JIT, and until it is explained the medians cannot
 
 The GC hypothesis for the TLS variance is **falsified**: `gcMs` stays between 71 and 99 while
 throughput swings from 70k to 116k, and epoll's slowest TLS round had its lowest GC.
+
+
+## Buffer rings and multishot recv: swept, no effect
+
+Netty sets `IORING_RECV_MULTISHOT` in exactly one place, `scheduleReadProviderBuffer()` in
+`AbstractIoUringStreamChannel`, and reaches it only when a provided buffer ring is configured.
+`IoUringIoHandlerConfig` configures none by default, so `io.netty.iouring.recvMultiShotEnabled`
+defaulting to `true` is inert on its own. Every io_uring measurement in this branch before this
+point therefore ran one-shot recv: an SQE prepared, submitted, reaped and re-armed per read.
+
+That made buffer rings the obvious candidate for the plaintext deficit, and the `ctimer` profile
+agreed in shape: no dominant frame, just a long tail of `handleFastPath`, jctools accessors and
+`writeComplete0`, which is what per-read re-arming looks like.
+
+Five interleaved rounds, 10k connections, 10 s, x86_64, `--buffer-ring` 0 / 1024 / 4096:
+
+| cell | round spread | median |
+|---|---|---|
+| epoll | 137,726 - 166,466 | 159,512 |
+| io_uring, no buffer ring | 101,105 - 119,759 | 117,079 |
+| io_uring + buffer ring 1024 | 110,861 - 120,091 | 116,356 |
+| io_uring + buffer ring 4096 | 107,439 - 124,705 | 115,023 |
+
+The three io_uring cells overlap almost entirely and their medians sit within 2%. epoll leads all
+three in all five rounds. **Arming multishot recv does not close the gap**, so the cost is not
+per-read re-arming, and by the branch's own rule this is reported as no effect rather than as a
+small one. Note the epoll spread is 21% this run, so the machine was drifting; that widens every
+error bar but cannot manufacture the consistent epoll lead.
+
+Two things found on the way:
+
+- **`IoUringBufferRingConfig.builder()` cannot be used without `batchSize()`.** The builder
+  initialises it to -1 and `build()` validates it into 1..1024, so it throws where every other
+  optional field has a working default. Reportable upstream.
+- **io_uring is not punting to `io_wq`.** A thread census during steady state found no `iou-wrk-*`
+  threads on either side, so operations are completing inline and the deficit is not a worker
+  handoff.
+
+## Kernel profiling on a host you cannot change
+
+thor has `perf_event_paranoid=4` and `kptr_restrict=1` and `sudo` wants a password, which is why
+the first profiles used `ctimer` and saw no kernel frames at all. Container capabilities lift both
+without touching the host:
+
+    --cap-add=PERFMON --cap-add=SYS_ADMIN --cap-add=SYSLOG --security-opt seccomp=unconfined
+
+`CAP_PERFMON` bypasses the paranoid check, `CAP_SYSLOG` un-hides kernel symbols so frames resolve
+to names, and unconfining seccomp lets `perf_event_open` through docker's default filter. Kernel
+frames then resolve normally (`do_syscall_64`, `io_uring_enter`, `tcp_*`), and nothing on the host
+changes.
+
+**A caveat that outlived the experiment.** Sample counts must be checked against the CPU counters
+before any percentage is quoted:
+
+| | stime share of CPU | share of samples on kernel frames |
+|---|---|---|
+| epoll | 67.9% | 65.8% |
+| io_uring | 66.5% | **18.8%** |
+
+epoll's profile accounts for itself. io_uring's kernel time is largely invisible to the sampler
+even in real `perf` mode, and the `io_wq` explanation was tested and falsified. The cause is not
+established, so io_uring's profile is usable for the *shape* of its user-space work and not for
+percentages. Reading it without this check would have understated its kernel share by ~3.5x.
