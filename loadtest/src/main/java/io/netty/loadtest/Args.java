@@ -47,6 +47,21 @@ final class Args {
         return v == null ? dflt : Integer.parseInt(v);
     }
 
+    long getLong(String key, long dflt) {
+        String v = values.get(key);
+        return v == null ? dflt : Long.parseLong(v);
+    }
+
+    boolean has(String key) {
+        return values.containsKey(key);
+    }
+
+    /** {@code --flag} or {@code --flag=true}. An explicit {@code --flag=false} switches it off. */
+    boolean flag(String key) {
+        String v = values.get(key);
+        return v != null && !"false".equalsIgnoreCase(v);
+    }
+
     Transports transport() {
         return Transports.parse(get("transport", "nio"));
     }
