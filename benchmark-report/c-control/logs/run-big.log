@@ -1,0 +1,493 @@
+[13:25:55] phase=big rounds=5 duration=12s lengths=[1024 8192 65536] conns=[50 300]
+[13:25:56] idle check: us=1 sy=1 id=99
+[13:25:56] === round 1 ===
+--- epoll r1 len=1024 conns=50 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+50 clients, running 1024 bytes, 12 sec.
+
+Speed: 191231 request/sec, 191231 response/sec
+Requests: 2294777
+Responses: 2294775
+[13:26:09]   r1 epoll len=1024 c=50 -> 191231 req/s 
+--- iouring r1 len=1024 conns=50 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+50 clients, running 1024 bytes, 12 sec.
+
+Speed: 208606 request/sec, 208605 response/sec
+Requests: 2503273
+Responses: 2503271
+[13:26:23]   r1 iouring len=1024 c=50 -> 208606 req/s 
+--- epoll r1 len=1024 conns=300 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+300 clients, running 1024 bytes, 12 sec.
+
+Speed: 179212 request/sec, 179212 response/sec
+Requests: 2150553
+Responses: 2150553
+[13:26:38]   r1 epoll len=1024 c=300 -> 179212 req/s 
+--- iouring r1 len=1024 conns=300 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+300 clients, running 1024 bytes, 12 sec.
+
+Speed: 182689 request/sec, 182689 response/sec
+Requests: 2192277
+Responses: 2192277
+[13:26:52]   r1 iouring len=1024 c=300 -> 182689 req/s 
+--- epoll r1 len=8192 conns=50 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+50 clients, running 8192 bytes, 12 sec.
+
+Speed: 157000 request/sec, 157000 response/sec
+Requests: 1884006
+Responses: 1884005
+[13:27:06]   r1 epoll len=8192 c=50 -> 157000 req/s 
+--- iouring r1 len=8192 conns=50 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+50 clients, running 8192 bytes, 12 sec.
+
+Speed: 156524 request/sec, 156523 response/sec
+Requests: 1878288
+Responses: 1878286
+[13:27:21]   r1 iouring len=8192 c=50 -> 156524 req/s 
+--- epoll r1 len=8192 conns=300 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+300 clients, running 8192 bytes, 12 sec.
+
+Speed: 117635 request/sec, 117635 response/sec
+Requests: 1411626
+Responses: 1411625
+[13:27:35]   r1 epoll len=8192 c=300 -> 117635 req/s 
+--- iouring r1 len=8192 conns=300 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+300 clients, running 8192 bytes, 12 sec.
+
+Speed: 112537 request/sec, 112537 response/sec
+Requests: 1350445
+Responses: 1350445
+[13:27:50]   r1 iouring len=8192 c=300 -> 112537 req/s 
+--- epoll r1 len=65536 conns=50 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+50 clients, running 65536 bytes, 12 sec.
+
+Speed: 44199 request/sec, 44199 response/sec
+Requests: 530398
+Responses: 530397
+[13:28:04]   r1 epoll len=65536 c=50 -> 44199 req/s 
+--- iouring r1 len=65536 conns=50 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+50 clients, running 65536 bytes, 12 sec.
+
+Speed: 36621 request/sec, 36621 response/sec
+Requests: 439453
+Responses: 439452
+[13:28:18]   r1 iouring len=65536 c=50 -> 36621 req/s 
+--- epoll r1 len=65536 conns=300 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+300 clients, running 65536 bytes, 12 sec.
+
+Speed: 38213 request/sec, 38213 response/sec
+Requests: 458559
+Responses: 458559
+[13:28:33]   r1 epoll len=65536 c=300 -> 38213 req/s 
+--- iouring r1 len=65536 conns=300 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+300 clients, running 65536 bytes, 12 sec.
+
+Speed: 31785 request/sec, 31785 response/sec
+Requests: 381423
+Responses: 381423
+[13:28:47]   r1 iouring len=65536 c=300 -> 31785 req/s 
+[13:28:50] idle after round 1: id=88
+[13:28:50] === round 2 ===
+--- iouring r2 len=1024 conns=50 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+50 clients, running 1024 bytes, 12 sec.
+
+Speed: 209199 request/sec, 209198 response/sec
+Requests: 2510388
+Responses: 2510387
+[13:29:03]   r2 iouring len=1024 c=50 -> 209199 req/s 
+--- epoll r2 len=1024 conns=50 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+50 clients, running 1024 bytes, 12 sec.
+
+Speed: 192855 request/sec, 192855 response/sec
+Requests: 2314264
+Responses: 2314262
+[13:29:17]   r2 epoll len=1024 c=50 -> 192855 req/s 
+--- iouring r2 len=1024 conns=300 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+300 clients, running 1024 bytes, 12 sec.
+
+Speed: 185055 request/sec, 185055 response/sec
+Requests: 2220664
+Responses: 2220662
+[13:29:31]   r2 iouring len=1024 c=300 -> 185055 req/s 
+--- epoll r2 len=1024 conns=300 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+300 clients, running 1024 bytes, 12 sec.
+
+Speed: 179040 request/sec, 179040 response/sec
+Requests: 2148491
+Responses: 2148489
+[13:29:46]   r2 epoll len=1024 c=300 -> 179040 req/s 
+--- iouring r2 len=8192 conns=50 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+50 clients, running 8192 bytes, 12 sec.
+
+Speed: 153483 request/sec, 153482 response/sec
+Requests: 1841796
+Responses: 1841795
+[13:30:00]   r2 iouring len=8192 c=50 -> 153483 req/s 
+--- epoll r2 len=8192 conns=50 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+50 clients, running 8192 bytes, 12 sec.
+
+Speed: 156207 request/sec, 156207 response/sec
+Requests: 1874494
+Responses: 1874492
+[13:30:15]   r2 epoll len=8192 c=50 -> 156207 req/s 
+--- iouring r2 len=8192 conns=300 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+300 clients, running 8192 bytes, 12 sec.
+
+Speed: 112694 request/sec, 112694 response/sec
+Requests: 1352331
+Responses: 1352329
+[13:30:29]   r2 iouring len=8192 c=300 -> 112694 req/s 
+--- epoll r2 len=8192 conns=300 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+300 clients, running 8192 bytes, 12 sec.
+
+Speed: 120314 request/sec, 120313 response/sec
+Requests: 1443768
+Responses: 1443767
+[13:30:43]   r2 epoll len=8192 c=300 -> 120314 req/s 
+--- iouring r2 len=65536 conns=50 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+50 clients, running 65536 bytes, 12 sec.
+
+Speed: 36713 request/sec, 36713 response/sec
+Requests: 440561
+Responses: 440560
+[13:30:58]   r2 iouring len=65536 c=50 -> 36713 req/s 
+--- epoll r2 len=65536 conns=50 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+50 clients, running 65536 bytes, 12 sec.
+
+Speed: 44938 request/sec, 44938 response/sec
+Requests: 539261
+Responses: 539260
+[13:31:12]   r2 epoll len=65536 c=50 -> 44938 req/s 
+--- iouring r2 len=65536 conns=300 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+300 clients, running 65536 bytes, 12 sec.
+
+Speed: 31815 request/sec, 31815 response/sec
+Requests: 381787
+Responses: 381787
+[13:31:27]   r2 iouring len=65536 c=300 -> 31815 req/s 
+--- epoll r2 len=65536 conns=300 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+300 clients, running 65536 bytes, 12 sec.
+
+Speed: 38011 request/sec, 38011 response/sec
+Requests: 456135
+Responses: 456134
+[13:31:41]   r2 epoll len=65536 c=300 -> 38011 req/s 
+[13:31:44] idle after round 2: id=99
+[13:31:44] === round 3 ===
+--- epoll r3 len=1024 conns=50 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+50 clients, running 1024 bytes, 12 sec.
+
+Speed: 191912 request/sec, 191912 response/sec
+Requests: 2302954
+Responses: 2302953
+[13:31:57]   r3 epoll len=1024 c=50 -> 191912 req/s 
+--- iouring r3 len=1024 conns=50 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+50 clients, running 1024 bytes, 12 sec.
+
+Speed: 210239 request/sec, 210239 response/sec
+Requests: 2522874
+Responses: 2522873
+[13:32:11]   r3 iouring len=1024 c=50 -> 210239 req/s 
+--- epoll r3 len=1024 conns=300 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+300 clients, running 1024 bytes, 12 sec.
+
+Speed: 176620 request/sec, 176620 response/sec
+Requests: 2119451
+Responses: 2119449
+[13:32:25]   r3 epoll len=1024 c=300 -> 176620 req/s 
+--- iouring r3 len=1024 conns=300 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+300 clients, running 1024 bytes, 12 sec.
+
+Speed: 183874 request/sec, 183874 response/sec
+Requests: 2206496
+Responses: 2206494
+[13:32:40]   r3 iouring len=1024 c=300 -> 183874 req/s 
+--- epoll r3 len=8192 conns=50 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+50 clients, running 8192 bytes, 12 sec.
+
+Speed: 155842 request/sec, 155842 response/sec
+Requests: 1870114
+Responses: 1870112
+[13:32:54]   r3 epoll len=8192 c=50 -> 155842 req/s 
+--- iouring r3 len=8192 conns=50 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+50 clients, running 8192 bytes, 12 sec.
+
+Speed: 154875 request/sec, 154874 response/sec
+Requests: 1858500
+Responses: 1858499
+[13:33:09]   r3 iouring len=8192 c=50 -> 154875 req/s 
+--- epoll r3 len=8192 conns=300 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+300 clients, running 8192 bytes, 12 sec.
+
+Speed: 118886 request/sec, 118886 response/sec
+Requests: 1426637
+Responses: 1426636
+[13:33:23]   r3 epoll len=8192 c=300 -> 118886 req/s 
+--- iouring r3 len=8192 conns=300 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+300 clients, running 8192 bytes, 12 sec.
+
+Speed: 111825 request/sec, 111825 response/sec
+Requests: 1341906
+Responses: 1341905
+[13:33:37]   r3 iouring len=8192 c=300 -> 111825 req/s 
+--- epoll r3 len=65536 conns=50 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+50 clients, running 65536 bytes, 12 sec.
+
+Speed: 44219 request/sec, 44219 response/sec
+Requests: 530634
+Responses: 530634
+[13:33:52]   r3 epoll len=65536 c=50 -> 44219 req/s 
+--- iouring r3 len=65536 conns=50 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+50 clients, running 65536 bytes, 12 sec.
+
+Speed: 36722 request/sec, 36722 response/sec
+Requests: 440673
+Responses: 440672
+[13:34:06]   r3 iouring len=65536 c=50 -> 36722 req/s 
+--- epoll r3 len=65536 conns=300 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+300 clients, running 65536 bytes, 12 sec.
+
+Speed: 38208 request/sec, 38208 response/sec
+Requests: 458505
+Responses: 458504
+[13:34:21]   r3 epoll len=65536 c=300 -> 38208 req/s 
+--- iouring r3 len=65536 conns=300 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+300 clients, running 65536 bytes, 12 sec.
+
+Speed: 31909 request/sec, 31909 response/sec
+Requests: 382914
+Responses: 382913
+[13:34:35]   r3 iouring len=65536 c=300 -> 31909 req/s 
+[13:34:38] idle after round 3: id=99
+[13:34:38] === round 4 ===
+--- iouring r4 len=1024 conns=50 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+50 clients, running 1024 bytes, 12 sec.
+
+Speed: 209537 request/sec, 209537 response/sec
+Requests: 2514450
+Responses: 2514449
+[13:34:50]   r4 iouring len=1024 c=50 -> 209537 req/s 
+--- epoll r4 len=1024 conns=50 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+50 clients, running 1024 bytes, 12 sec.
+
+Speed: 193544 request/sec, 193544 response/sec
+Requests: 2322536
+Responses: 2322535
+[13:35:05]   r4 epoll len=1024 c=50 -> 193544 req/s 
+--- iouring r4 len=1024 conns=300 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+300 clients, running 1024 bytes, 12 sec.
+
+Speed: 181502 request/sec, 181502 response/sec
+Requests: 2178032
+Responses: 2178030
+[13:35:19]   r4 iouring len=1024 c=300 -> 181502 req/s 
+--- epoll r4 len=1024 conns=300 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+300 clients, running 1024 bytes, 12 sec.
+
+Speed: 176617 request/sec, 176617 response/sec
+Requests: 2119412
+Responses: 2119409
+[13:35:34]   r4 epoll len=1024 c=300 -> 176617 req/s 
+--- iouring r4 len=8192 conns=50 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+50 clients, running 8192 bytes, 12 sec.
+
+Speed: 154742 request/sec, 154742 response/sec
+Requests: 1856913
+Responses: 1856911
+[13:35:48]   r4 iouring len=8192 c=50 -> 154742 req/s 
+--- epoll r4 len=8192 conns=50 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+50 clients, running 8192 bytes, 12 sec.
+
+Speed: 157699 request/sec, 157699 response/sec
+Requests: 1892397
+Responses: 1892395
+[13:36:02]   r4 epoll len=8192 c=50 -> 157699 req/s 
+--- iouring r4 len=8192 conns=300 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+300 clients, running 8192 bytes, 12 sec.
+
+Speed: 112898 request/sec, 112898 response/sec
+Requests: 1354786
+Responses: 1354786
+[13:36:17]   r4 iouring len=8192 c=300 -> 112898 req/s 
+--- epoll r4 len=8192 conns=300 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+300 clients, running 8192 bytes, 12 sec.
+
+Speed: 118395 request/sec, 118395 response/sec
+Requests: 1420743
+Responses: 1420741
+[13:36:31]   r4 epoll len=8192 c=300 -> 118395 req/s 
+--- iouring r4 len=65536 conns=50 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+50 clients, running 65536 bytes, 12 sec.
+
+Speed: 36566 request/sec, 36566 response/sec
+Requests: 438796
+Responses: 438795
+[13:36:46]   r4 iouring len=65536 c=50 -> 36566 req/s 
+--- epoll r4 len=65536 conns=50 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+50 clients, running 65536 bytes, 12 sec.
+
+Speed: 44446 request/sec, 44446 response/sec
+Requests: 533352
+Responses: 533352
+[13:37:00]   r4 epoll len=65536 c=50 -> 44446 req/s 
+--- iouring r4 len=65536 conns=300 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+300 clients, running 65536 bytes, 12 sec.
+
+Speed: 31925 request/sec, 31925 response/sec
+Requests: 383106
+Responses: 383106
+[13:37:14]   r4 iouring len=65536 c=300 -> 31925 req/s 
+--- epoll r4 len=65536 conns=300 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+300 clients, running 65536 bytes, 12 sec.
+
+Speed: 38081 request/sec, 38081 response/sec
+Requests: 456980
+Responses: 456979
+[13:37:29]   r4 epoll len=65536 c=300 -> 38081 req/s 
+[13:37:32] idle after round 4: id=99
+[13:37:32] === round 5 ===
+--- epoll r5 len=1024 conns=50 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+50 clients, running 1024 bytes, 12 sec.
+
+Speed: 191513 request/sec, 191512 response/sec
+Requests: 2298157
+Responses: 2298155
+[13:37:44]   r5 epoll len=1024 c=50 -> 191513 req/s 
+--- iouring r5 len=1024 conns=50 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+50 clients, running 1024 bytes, 12 sec.
+
+Speed: 210404 request/sec, 210404 response/sec
+Requests: 2524858
+Responses: 2524857
+[13:37:59]   r5 iouring len=1024 c=50 -> 210404 req/s 
+--- epoll r5 len=1024 conns=300 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+300 clients, running 1024 bytes, 12 sec.
+
+Speed: 176414 request/sec, 176413 response/sec
+Requests: 2116969
+Responses: 2116967
+[13:38:13]   r5 epoll len=1024 c=300 -> 176414 req/s 
+--- iouring r5 len=1024 conns=300 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+300 clients, running 1024 bytes, 12 sec.
+
+Speed: 185547 request/sec, 185547 response/sec
+Requests: 2226569
+Responses: 2226568
+[13:38:27]   r5 iouring len=1024 c=300 -> 185547 req/s 
+--- epoll r5 len=8192 conns=50 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+50 clients, running 8192 bytes, 12 sec.
+
+Speed: 155100 request/sec, 155100 response/sec
+Requests: 1861207
+Responses: 1861206
+[13:38:42]   r5 epoll len=8192 c=50 -> 155100 req/s 
+--- iouring r5 len=8192 conns=50 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+50 clients, running 8192 bytes, 12 sec.
+
+Speed: 155275 request/sec, 155274 response/sec
+Requests: 1863300
+Responses: 1863298
+[13:38:56]   r5 iouring len=8192 c=50 -> 155275 req/s 
+--- epoll r5 len=8192 conns=300 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+300 clients, running 8192 bytes, 12 sec.
+
+Speed: 118399 request/sec, 118399 response/sec
+Requests: 1420790
+Responses: 1420788
+[13:39:11]   r5 epoll len=8192 c=300 -> 118399 req/s 
+--- iouring r5 len=8192 conns=300 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+300 clients, running 8192 bytes, 12 sec.
+
+Speed: 114426 request/sec, 114426 response/sec
+Requests: 1373115
+Responses: 1373114
+[13:39:25]   r5 iouring len=8192 c=300 -> 114426 req/s 
+--- epoll r5 len=65536 conns=50 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+50 clients, running 65536 bytes, 12 sec.
+
+Speed: 45416 request/sec, 45416 response/sec
+Requests: 545002
+Responses: 545002
+[13:39:40]   r5 epoll len=65536 c=50 -> 45416 req/s 
+--- iouring r5 len=65536 conns=50 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+50 clients, running 65536 bytes, 12 sec.
+
+Speed: 36464 request/sec, 36464 response/sec
+Requests: 437570
+Responses: 437570
+[13:39:54]   r5 iouring len=65536 c=50 -> 36464 req/s 
+--- epoll r5 len=65536 conns=300 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+300 clients, running 65536 bytes, 12 sec.
+
+Speed: 38090 request/sec, 38090 response/sec
+Requests: 457085
+Responses: 457085
+[13:40:08]   r5 epoll len=65536 c=300 -> 38090 req/s 
+--- iouring r5 len=65536 conns=300 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+300 clients, running 65536 bytes, 12 sec.
+
+Speed: 31861 request/sec, 31861 response/sec
+Requests: 382339
+Responses: 382338
+[13:40:23]   r5 iouring len=65536 c=300 -> 31861 req/s 
+[13:40:26] idle after round 5: id=98
+[13:40:26] done, results in /home/fred/c-control/results-big.tsv
