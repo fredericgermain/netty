@@ -238,11 +238,17 @@ first reported. That maps onto reads per message: a 64 KB payload plus its 4-byt
 in every cell.
 
 The mechanism: netty's `AdaptiveRecvByteBufAllocator` caps at 64 KB by default, so reads per message
-grow with payload. And **io_uring pays about double per read**, because with no provided buffer ring
-configured `isPollInFirst()` returns true (`AbstractIoUringStreamChannel.java:798-801`) and every read
-is POLL_ADD *then* RECV: two submissions and two completions, where epoll does one `read()` on a
-shared `epoll_wait` wakeup. A per-read penalty multiplied by a read count that rises with payload is
-exactly a deficit that widens with message size.
+grow with payload, and io_uring's per-read cost on this kernel and loopback path is higher than a
+plain `recv`. A per-read penalty multiplied by a rising read count is exactly a deficit that opens
+with message size.
+
+**Netty adds to that per-read cost but does not create it.** With no provided buffer ring configured
+`isPollInFirst()` returns true (`AbstractIoUringStreamChannel.java:798-801`) and every read is
+POLL_ADD *then* RECV: two submissions and two completions where epoll does one `read()`. Allocation
+profiling caught exactly this, one `IoUringIoOps` per operation on the
+`pollAddComplete -> pollIn -> scheduleFirstRead` path. **But the C control below shows the same
+size-dependent decay in a server that never issues `POLL_ADD` at all**, so that pair is part of the
+offset between netty and C, not the reason either curve slopes.
 
 Raising the receive buffer recovers about a third of the gap (42% to 58% of epoll) with one channel
 option.
@@ -311,6 +317,61 @@ and **exactly nothing at 256 KB with 500 connections**, where the identical redu
 
 So pooled-memory churn is a real, measurable contributor with a measured size, and it scales with
 **concurrency**, not with message size. I originally presented it as the size effect. It is not.
+
+## The control I should have run first, and what it corrects
+
+**[SOLID]** Every number above is netty's transport on one machine. Nothing established that io_uring
+could beat epoll **at all** on this host, which means "netty's io_uring transport is slow" and "this
+kernel and this loopback are bad for io_uring" were not distinguishable. They are now.
+
+The control is `frevib/io_uring-echo-server` against `frevib/epoll-echo-server`, the C pair that
+liburing issue #536 treats as the reference comparison, driven by `haraldh/rust_echo_bench`. Same
+host, same whole-core pinning, 5 interleaved rounds, 180 runs with no failures and spreads typically
+under 1.5%.
+
+**io_uring does win here, so the environment is not the explanation:**
+
+| payload | conns | epoll | io_uring | ratio |
+|---|---|---|---|---|
+| 512 B | 50 | 193,659 | 213,270 | **1.10x** |
+| 1 KB | 50 | 191,912 | 209,537 | **1.09x** |
+| 8 KB | 50 | 156,207 | 154,875 | 0.99x (ranges overlap, a tie) |
+| 64 KB | 50 | 44,446 | 36,621 | **0.82x** |
+| 64 KB | 300 | 38,090 | 31,861 | **0.84x** |
+
+So netty's 1 KB deficit is real and large: C reaches 1.09x where netty reaches 0.63-0.85x.
+
+**But the shape is the same as netty's, not opposite, and that corrects me.** C io_uring decays from
+1.09x to 0.82x between 1 KB and 64 KB, losing about 25 points. Netty loses 20-30 points over the same
+span. The two curves are close to parallel, with netty's sitting 25-40 points lower.
+
+**The decisive detail: frevib's io_uring server never issues `POLL_ADD`.** It relies on
+`IORING_FEAT_FAST_POLL`. The size-dependent decay appears anyway.
+
+**So `POLL_ADD` cannot be the cause of the size dependence**, which is what I claimed. The defensible
+form is weaker and more general: **any per-read operation overhead multiplies with read count, and
+io_uring's per-read overhead on this kernel and this loopback path exceeds a plain `recv`.** The
+reads-per-message framing survives intact, because it never depended on which operations make up the
+per-read cost. What does not survive is naming `POLL_ADD` as the mechanism behind the widening.
+`POLL_ADD` would add to the per-read cost rather than create the effect, and it remains a live
+candidate for the **offset** between the two curves rather than their slope.
+
+**What this control does not license.** A single-threaded C echo server using kernel buffer
+selection, with no GC, no pipeline and no JNI, is not doing netty's work. The 0.82x bounds the
+environment; it does not measure what netty would score if its transport were written the same way.
+**[UNCERTAIN]** In particular, nothing here shows that the environmental factor (0.82) and netty's
+factor (roughly 0.50) compose independently, and they should not be multiplied or subtracted as if
+they did.
+
+**Published numbers did not reproduce at scale**, which is worth knowing before citing #536. Its
+512 B row is 1.11x / 1.43x / 1.46x at 50 / 300 / 1000 connections; we measure 1.10x / 1.06x / 0.98x.
+Absolute throughput here is roughly 5x higher. The published run was a 2020-era VMware guest on
+kernel 5.6.0-rc1, where syscalls are expensive and io_uring has a great deal to amortise. On bare
+metal with a 2025 kernel there is much less. Note it is io_uring's scaling with connection count that
+failed to reproduce, not epoll's: epoll decays about 22% from 50 to 1000 connections in both.
+
+**Obvious next control, not yet run**: the same C server modified to use `POLL_ADD` + `RECV`. That
+isolates the offset directly and is cheap now the harness exists.
 
 ## The six hypotheses that were wrong, in order
 
