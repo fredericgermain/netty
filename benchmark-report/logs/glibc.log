@@ -1,0 +1,8 @@
+port=19990 image=eclipse-temurin:21-jdk payload=65536 connections=2000
+round  epoll      io_uring
+1      39149      19155      
+2      41742      19534      
+3      42217      19893      
+4      40714      19671      
+5      40976      19529      
+GLIBC_DONE

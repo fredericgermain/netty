@@ -1,0 +1,35 @@
+port=19990 payload=65536 connections=2000 rounds=5
+round  ep-def     ur-def     ur-r512    ep-stack   ur-stack
+1      41815      18701      20666      39816      28687      
+2      37135      17538      23941      39701      28747      
+3      41310      17850      23653      41147      28775      
+4      41789      17931      23561      40016      28176      
+5      35904      17613      23555      38821      27595      
+--- detail:
+ep-def rps=41815 srvPool=16-16MB CLIENTCPU utimeMs=14060 stimeMs=25700 gcCount=3 gcMs=22 volCtxt=1838 involCtxt=4419 utimeUsPerReq=33.61 stimeUsPerReq=61.43
+ur-def rps=18701 srvPool=20-220MB CLIENTCPU utimeMs=11720 stimeMs=14170 gcCount=2 gcMs=22 volCtxt=12263 involCtxt=2946 utimeUsPerReq=62.64 stimeUsPerReq=75.74
+ur-r512 rps=20666 srvPool=16-112MB CLIENTCPU utimeMs=11980 stimeMs=17530 gcCount=2 gcMs=32 volCtxt=5358 involCtxt=5147 utimeUsPerReq=57.95 stimeUsPerReq=84.79
+ep-stack rps=39816 srvPool=28-48MB CLIENTCPU utimeMs=12780 stimeMs=25330 gcCount=3 gcMs=18 volCtxt=1123 involCtxt=4233 utimeUsPerReq=32.08 stimeUsPerReq=63.59
+ur-stack rps=28687 srvPool=108-296MB CLIENTCPU utimeMs=17250 stimeMs=21230 gcCount=3 gcMs=33 volCtxt=1705 involCtxt=5050 utimeUsPerReq=60.11 stimeUsPerReq=73.97
+ep-def rps=37135 srvPool=16-16MB CLIENTCPU utimeMs=13260 stimeMs=22320 gcCount=3 gcMs=22 volCtxt=2611 involCtxt=5796 utimeUsPerReq=35.68 stimeUsPerReq=60.06
+ur-def rps=17538 srvPool=16-212MB CLIENTCPU utimeMs=11200 stimeMs=13130 gcCount=2 gcMs=23 volCtxt=13108 involCtxt=2756 utimeUsPerReq=63.83 stimeUsPerReq=74.83
+ur-r512 rps=23941 srvPool=16-176MB CLIENTCPU utimeMs=13820 stimeMs=22590 gcCount=3 gcMs=32 volCtxt=4037 involCtxt=5205 utimeUsPerReq=57.70 stimeUsPerReq=94.31
+ep-stack rps=39701 srvPool=48-48MB CLIENTCPU utimeMs=14430 stimeMs=24810 gcCount=3 gcMs=23 volCtxt=1506 involCtxt=3445 utimeUsPerReq=36.33 stimeUsPerReq=62.46
+ur-stack rps=28747 srvPool=96-332MB CLIENTCPU utimeMs=16940 stimeMs=21410 gcCount=3 gcMs=29 volCtxt=1383 involCtxt=4588 utimeUsPerReq=58.90 stimeUsPerReq=74.44
+ep-def rps=41310 srvPool=16-16MB CLIENTCPU utimeMs=13890 stimeMs=25770 gcCount=3 gcMs=19 volCtxt=2731 involCtxt=4665 utimeUsPerReq=33.60 stimeUsPerReq=62.34
+ur-def rps=17850 srvPool=20-204MB CLIENTCPU utimeMs=11900 stimeMs=12300 gcCount=2 gcMs=26 volCtxt=13412 involCtxt=2506 utimeUsPerReq=66.63 stimeUsPerReq=68.87
+ur-r512 rps=23653 srvPool=16-172MB CLIENTCPU utimeMs=13740 stimeMs=22490 gcCount=3 gcMs=25 volCtxt=4137 involCtxt=5051 utimeUsPerReq=58.06 stimeUsPerReq=95.03
+ep-stack rps=41147 srvPool=32-48MB CLIENTCPU utimeMs=13770 stimeMs=25870 gcCount=3 gcMs=16 volCtxt=1347 involCtxt=3171 utimeUsPerReq=33.44 stimeUsPerReq=62.82
+ur-stack rps=28775 srvPool=80-212MB CLIENTCPU utimeMs=16370 stimeMs=22120 gcCount=3 gcMs=35 volCtxt=1453 involCtxt=4675 utimeUsPerReq=56.82 stimeUsPerReq=76.78
+ep-def rps=41789 srvPool=16-16MB CLIENTCPU utimeMs=14450 stimeMs=25530 gcCount=3 gcMs=18 volCtxt=1637 involCtxt=4131 utimeUsPerReq=34.55 stimeUsPerReq=61.05
+ur-def rps=17931 srvPool=16-216MB CLIENTCPU utimeMs=12430 stimeMs=13490 gcCount=2 gcMs=24 volCtxt=11377 involCtxt=3084 utimeUsPerReq=69.30 stimeUsPerReq=75.20
+ur-r512 rps=23561 srvPool=24-232MB CLIENTCPU utimeMs=13220 stimeMs=22540 gcCount=2 gcMs=29 volCtxt=4433 involCtxt=4795 utimeUsPerReq=56.08 stimeUsPerReq=95.61
+ep-stack rps=40016 srvPool=40-48MB CLIENTCPU utimeMs=14280 stimeMs=25230 gcCount=3 gcMs=17 volCtxt=1453 involCtxt=3655 utimeUsPerReq=35.65 stimeUsPerReq=62.99
+ur-stack rps=28176 srvPool=84-292MB CLIENTCPU utimeMs=16220 stimeMs=21940 gcCount=3 gcMs=38 volCtxt=1327 involCtxt=5438 utimeUsPerReq=57.50 stimeUsPerReq=77.78
+ep-def rps=35904 srvPool=16-16MB CLIENTCPU utimeMs=14280 stimeMs=21810 gcCount=3 gcMs=22 volCtxt=2722 involCtxt=5964 utimeUsPerReq=39.75 stimeUsPerReq=60.71
+ur-def rps=17613 srvPool=16-196MB CLIENTCPU utimeMs=11720 stimeMs=13900 gcCount=2 gcMs=41 volCtxt=11490 involCtxt=3275 utimeUsPerReq=66.48 stimeUsPerReq=78.85
+ur-r512 rps=23555 srvPool=20-128MB CLIENTCPU utimeMs=14880 stimeMs=22730 gcCount=3 gcMs=26 volCtxt=3354 involCtxt=5471 utimeUsPerReq=63.14 stimeUsPerReq=96.45
+ep-stack rps=38821 srvPool=48-48MB CLIENTCPU utimeMs=12650 stimeMs=24830 gcCount=3 gcMs=21 volCtxt=1470 involCtxt=4970 utimeUsPerReq=32.57 stimeUsPerReq=63.92
+ur-stack rps=27595 srvPool=92-240MB CLIENTCPU utimeMs=14580 stimeMs=21490 gcCount=3 gcMs=54 volCtxt=1964 involCtxt=5534 utimeUsPerReq=52.80 stimeUsPerReq=77.83
+--- errors:
+STACK_DONE

@@ -1,0 +1,40 @@
+port=19990 payload=65536 connections=2000 rounds=5
+round  ep-old     ur-old     ep-new     ur-new     ep-new-c   ur-new-c
+1      38728      17706      32584      16997      41594      19179      
+2      40683      17285      39153      16992      42366      21421      
+3      42512      18139      34959      17794      45175      20366      
+4      42683      18607      42017      18135      43885      20953      
+5      41504      18964      34442      18035      43745      20442      
+--- detail:
+ep-old rps=38728 srvPool=16-16MB CLIENTCPU utimeMs=14470 stimeMs=24060 gcCount=3 gcMs=25 volCtxt=2027 involCtxt=6727 utimeUsPerReq=37.34 stimeUsPerReq=62.09
+ur-old rps=17706 srvPool=20-196MB CLIENTCPU utimeMs=12870 stimeMs=15630 gcCount=2 gcMs=30 volCtxt=4919 involCtxt=5959 utimeUsPerReq=72.67 stimeUsPerReq=88.25
+ep-new rps=32584 srvPool=16-16MB CLIENTCPU utimeMs=12670 stimeMs=20070 gcCount=3 gcMs=19 volCtxt=2800 involCtxt=8062 utimeUsPerReq=38.86 stimeUsPerReq=61.56
+ur-new rps=16997 srvPool=16-192MB CLIENTCPU utimeMs=12820 stimeMs=15070 gcCount=2 gcMs=23 volCtxt=7254 involCtxt=5048 utimeUsPerReq=75.37 stimeUsPerReq=88.60
+ep-new-c rps=41594 srvPool=16-16MB CLIENTCPU utimeMs=13000 stimeMs=26190 gcCount=3 gcMs=23 volCtxt=1723 involCtxt=5531 utimeUsPerReq=31.23 stimeUsPerReq=62.93
+ur-new-c rps=19179 srvPool=104-152MB CLIENTCPU utimeMs=18430 stimeMs=18400 gcCount=2 gcMs=28 volCtxt=2159 involCtxt=7343 utimeUsPerReq=96.06 stimeUsPerReq=95.90
+ep-old rps=40683 srvPool=16-16MB CLIENTCPU utimeMs=13740 stimeMs=24970 gcCount=3 gcMs=29 volCtxt=1804 involCtxt=6474 utimeUsPerReq=33.76 stimeUsPerReq=61.34
+ur-old rps=17285 srvPool=20-196MB CLIENTCPU utimeMs=14020 stimeMs=14910 gcCount=2 gcMs=44 volCtxt=5387 involCtxt=5739 utimeUsPerReq=81.09 stimeUsPerReq=86.23
+ep-new rps=39153 srvPool=16-16MB CLIENTCPU utimeMs=14970 stimeMs=24320 gcCount=3 gcMs=21 volCtxt=1382 involCtxt=4503 utimeUsPerReq=38.21 stimeUsPerReq=62.07
+ur-new rps=16992 srvPool=20-200MB CLIENTCPU utimeMs=12990 stimeMs=13860 gcCount=2 gcMs=50 volCtxt=7449 involCtxt=4662 utimeUsPerReq=76.42 stimeUsPerReq=81.53
+ep-new-c rps=42366 srvPool=16-16MB CLIENTCPU utimeMs=13000 stimeMs=26140 gcCount=3 gcMs=20 volCtxt=1811 involCtxt=4552 utimeUsPerReq=30.67 stimeUsPerReq=61.66
+ur-new-c rps=21421 srvPool=104-140MB CLIENTCPU utimeMs=18500 stimeMs=20080 gcCount=3 gcMs=26 volCtxt=1434 involCtxt=6275 utimeUsPerReq=86.29 stimeUsPerReq=93.66
+ep-old rps=42512 srvPool=16-16MB CLIENTCPU utimeMs=14280 stimeMs=25130 gcCount=3 gcMs=15 volCtxt=1998 involCtxt=6239 utimeUsPerReq=33.57 stimeUsPerReq=59.08
+ur-old rps=18139 srvPool=24-172MB CLIENTCPU utimeMs=13310 stimeMs=16230 gcCount=2 gcMs=36 volCtxt=5545 involCtxt=5460 utimeUsPerReq=73.36 stimeUsPerReq=89.45
+ep-new rps=34959 srvPool=16-16MB CLIENTCPU utimeMs=11910 stimeMs=21460 gcCount=3 gcMs=27 volCtxt=4557 involCtxt=6614 utimeUsPerReq=34.05 stimeUsPerReq=61.35
+ur-new rps=17794 srvPool=20-212MB CLIENTCPU utimeMs=12290 stimeMs=14300 gcCount=2 gcMs=32 volCtxt=8589 involCtxt=4318 utimeUsPerReq=69.03 stimeUsPerReq=80.32
+ep-new-c rps=45175 srvPool=16-16MB CLIENTCPU utimeMs=11870 stimeMs=27640 gcCount=3 gcMs=17 volCtxt=2273 involCtxt=4999 utimeUsPerReq=26.26 stimeUsPerReq=61.14
+ur-new-c rps=20366 srvPool=96-212MB CLIENTCPU utimeMs=17040 stimeMs=18300 gcCount=2 gcMs=26 volCtxt=3626 involCtxt=7419 utimeUsPerReq=83.61 stimeUsPerReq=89.79
+ep-old rps=42683 srvPool=16-16MB CLIENTCPU utimeMs=13810 stimeMs=25750 gcCount=3 gcMs=25 volCtxt=2090 involCtxt=5220 utimeUsPerReq=32.34 stimeUsPerReq=60.31
+ur-old rps=18607 srvPool=28-196MB CLIENTCPU utimeMs=12840 stimeMs=17090 gcCount=2 gcMs=30 volCtxt=6449 involCtxt=4421 utimeUsPerReq=68.98 stimeUsPerReq=91.81
+ep-new rps=42017 srvPool=16-16MB CLIENTCPU utimeMs=14130 stimeMs=25680 gcCount=3 gcMs=17 volCtxt=1893 involCtxt=4353 utimeUsPerReq=33.61 stimeUsPerReq=61.08
+ur-new rps=18135 srvPool=20-188MB CLIENTCPU utimeMs=12430 stimeMs=14220 gcCount=2 gcMs=21 volCtxt=10843 involCtxt=3886 utimeUsPerReq=68.51 stimeUsPerReq=78.38
+ep-new-c rps=43885 srvPool=16-16MB CLIENTCPU utimeMs=12630 stimeMs=27180 gcCount=3 gcMs=19 volCtxt=1695 involCtxt=3432 utimeUsPerReq=28.77 stimeUsPerReq=61.91
+ur-new-c rps=20953 srvPool=104-156MB CLIENTCPU utimeMs=18770 stimeMs=19460 gcCount=2 gcMs=32 volCtxt=1778 involCtxt=6960 utimeUsPerReq=89.53 stimeUsPerReq=92.82
+ep-old rps=41504 srvPool=16-16MB CLIENTCPU utimeMs=14210 stimeMs=25350 gcCount=3 gcMs=27 volCtxt=1784 involCtxt=5538 utimeUsPerReq=34.22 stimeUsPerReq=61.05
+ur-old rps=18964 srvPool=16-192MB CLIENTCPU utimeMs=13110 stimeMs=16500 gcCount=2 gcMs=27 volCtxt=7319 involCtxt=4705 utimeUsPerReq=69.09 stimeUsPerReq=86.95
+ep-new rps=34442 srvPool=16-16MB CLIENTCPU utimeMs=13450 stimeMs=20790 gcCount=3 gcMs=19 volCtxt=2660 involCtxt=7481 utimeUsPerReq=39.03 stimeUsPerReq=60.33
+ur-new rps=18035 srvPool=16-196MB CLIENTCPU utimeMs=12340 stimeMs=14770 gcCount=2 gcMs=28 volCtxt=9046 involCtxt=3989 utimeUsPerReq=68.39 stimeUsPerReq=81.86
+ep-new-c rps=43745 srvPool=16-16MB CLIENTCPU utimeMs=13190 stimeMs=26340 gcCount=3 gcMs=15 volCtxt=1621 involCtxt=4276 utimeUsPerReq=30.13 stimeUsPerReq=60.16
+ur-new-c rps=20442 srvPool=116-196MB CLIENTCPU utimeMs=16680 stimeMs=17790 gcCount=2 gcMs=30 volCtxt=4637 involCtxt=6941 utimeUsPerReq=81.55 stimeUsPerReq=86.97
+--- errors:
+PINCACHE_DONE

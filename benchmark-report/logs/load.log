@@ -1,0 +1,16 @@
+host somaxconn=4096 ephemeral=32768	60999
+
+=== 10000 connections, 15s steady state, 1KB payload
+--- plaintext: the transport ceiling, no crypto in the way
+nio/none                   RAMP  connections=10000 established=10000 errors=0 wallMs=753 connPerSec=13269 STEADY durationS=15.0 requests=2286391 reqPerSec=152238 errors=0 p50us=57151 p99us=205183 p999us=431359 maxUs=536063 
+epoll/none                 RAMP  connections=10000 established=10000 errors=0 wallMs=575 connPerSec=17373 STEADY durationS=15.0 requests=2501817 reqPerSec=166679 errors=0 p50us=58495 p99us=194559 p999us=386815 maxUs=632831 
+io_uring/none              SERVER FAILED: Error response from daemon: No such container: load-io_uring-none-srv 
+
+--- TLS via tcnative/BoringSSL
+nio/openssl                RAMP  connections=10000 established=10000 errors=0 wallMs=3998 connPerSec=2501 STEADY durationS=15.0 requests=1336224 reqPerSec=88876 errors=0 p50us=104511 p99us=279039 p999us=519423 maxUs=590335 
+epoll/openssl              RAMP  connections=10000 established=10000 errors=0 wallMs=3776 connPerSec=2648 STEADY durationS=15.0 requests=1178329 reqPerSec=78485 errors=0 p50us=128447 p99us=297471 p999us=557567 maxUs=709119 
+io_uring/openssl           SERVER FAILED: Error response from daemon: No such container: load-io_uring-openssl-srv 
+
+--- TLS via the JDK provider, same transports
+epoll/jdk                  RAMP  connections=10000 established=10000 errors=2 wallMs=13317 connPerSec=751 
+LOAD_DONE

@@ -1,0 +1,15 @@
+=== rebuilding the patched jar with the groups option
+  ok
+
+=== BoringSSL, TLS 1.3, group varied (everything else fixed)
+TLS1.3  group=<provider default>               1383.662 ± 17.634 us/op
+TLS1.3  group=X25519 (classical)               1043.658 ± 11.675 us/op
+TLS1.3  group=X25519MLKEM768 (what S3 uses)    1367.343 ± 12.245 us/op
+TLS1.3  group=P-256                            1000.800 ± 9.037 us/op
+
+=== same group on both protocol versions -- the apples-to-apples comparison
+TLS1.2  group=X25519                           769.753 ± 11.773 us/op
+TLS1.3  group=X25519                           1004.029 ± 12.188 us/op
+TLS1.2  group=P-256                            778.397 ± 13.402 us/op
+TLS1.3  group=P-256                            985.442 ± 6.287 us/op
+GROUPS_DONE

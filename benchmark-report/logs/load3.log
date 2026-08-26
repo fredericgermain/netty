@@ -1,0 +1,18 @@
+=== A. io_uring ring size, plaintext, closed loop -- is the collapse the default ring?
+io_uring ring=4096 (netty default) SERVER FAILED
+io_uring ring=16384                SERVER FAILED
+io_uring ring=32768                SERVER FAILED
+
+=== B. saturation throughput, closed loop (latency column is queue depth, ignore it)
+nio      plaintext                 SERVER FAILED
+epoll    plaintext                 SERVER FAILED
+io_uring plaintext                 SERVER FAILED
+nio      boringssl                 SERVER FAILED
+epoll    boringssl                 SERVER FAILED
+io_uring boringssl                 SERVER FAILED
+
+=== C. real latency, open loop at 100k req/s (well under saturation)
+nio      plaintext @100k           SERVER FAILED
+epoll    plaintext @100k           SERVER FAILED
+io_uring plaintext @100k           SERVER FAILED
+epoll    boringssl @50k            SERVER FAILED

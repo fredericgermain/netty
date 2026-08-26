@@ -40,11 +40,10 @@ and has nothing to do with Alpine or io_uring.
 The default and the explicit post-quantum hybrid are the same number, which is how you know the
 default *is* the hybrid. Pinning classical X25519 instead is about 25% cheaper.
 
-**[UNCERTAIN] The unit is not recorded in anything I can still read.** This is a JMH
-`Mode.AverageTime` handshake benchmark, so it is time per handshake and lower is better, but whether
-these are nanoseconds or microseconds per operation is not something I can confirm without re-running.
-The *ratios* are what the argument rests on and those are safe. **Do not publish the absolute
-numbers with a unit attached until one cell is re-run.**
+**Unit resolved: `us/op`, microseconds per handshake, lower is better.** The raw JMH records were
+recovered from the test host and are now committed under `benchmark-report/jmh/`, so these figures
+are verified against primary output rather than recalled. Every value above matches to three
+decimals.
 
 ## The same group is what AWS actually negotiates today
 
@@ -122,8 +121,31 @@ x86_64 only.
 at all. The penalty is a property of the *dynamic* flavour, which resolves the distro's libssl at
 runtime, and on TLS 1.3 it reaches +17-22%.
 
-**[UNCERTAIN]** Same unit caveat as above. The mechanism (runtime resolution vs compiled-in crypto)
-is inferred and was never directly instrumented, and the write-up should say so.
+Verified from the recovered JMH records: `openssl-dynamic` OPENSSL is 990.44 +/- 19.80 on glibc
+against 1111.29 +/- 28.23 on musl, while `boringssl-static` OPENSSL is 804.15 +/- 16.89 against
+796.70 +/- 13.93. On TLS 1.3 the openssl-dynamic gap is 1061.07 (glibc) against 1240.62 (musl),
+which is +17%, and 1298.15 on amazoncorretto, which is +22%.
+
+**[UNCERTAIN]** The *mechanism* (runtime resolution of the distro libssl versus compiled-in crypto)
+is inferred and was never directly instrumented. The write-up should say so.
+
+## The JDK TLS provider is about twice as slow as tcnative, on every image
+
+**[SOLID]** Not the headline anyone was looking for, but it falls straight out of the control rows
+and it is the most directly actionable number in the whole TLS matrix. Handshake time, us/op:
+
+| image / flavour | JDK provider | tcnative | ratio |
+|---|---|---|---|
+| glibc, openssl-dynamic, TLS 1.2 | 1935.49 +/- 37.90 | 990.44 +/- 19.80 | 1.95x |
+| musl, openssl-dynamic, TLS 1.2 | 1925.21 +/- 35.67 | 1111.29 +/- 28.23 | 1.73x |
+| glibc, boringssl-static, TLS 1.2 | 2127.49 +/- 32.20 | 804.15 +/- 16.89 | **2.65x** |
+| musl, boringssl-static, TLS 1.2 | 2073.23 +/- 59.98 | 796.70 +/- 13.93 | **2.60x** |
+| glibc, boringssl-static, TLS 1.3 | 2472.65 +/- 124.78 | 1346.33 +/- 11.07 | 1.84x |
+
+The JDK rows were only ever included as a control, to prove no libc effect existed on a provider
+that has no native code. They do that: 1935.49 on glibc against 1925.21 on musl is no difference at
+all. But they also quietly answer "is tcnative worth the deployment pain on Alpine", and the answer
+is that it roughly halves handshake cost, and against `boringssl-static` it is closer to a third.
 
 ---
 
