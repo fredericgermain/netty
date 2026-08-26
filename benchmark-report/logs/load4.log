@@ -1,0 +1,21 @@
+using port 19990
+=== A. io_uring ring size, plaintext, closed loop -- is the collapse the default ring?
+io_uring ring=4096 (netty default) RAMP  connections=10000 established=10000 errors=0 wallMs=674 connPerSec=14834 STEADY durationS=15.0 requests=1915605 reqPerSec=127590 targetPerSec=0 errors=0 p50us=69567 p99us=226303 p999us=561151 maxUs=611839 mode=closed-loop:latency-is-queue-depth 
+io_uring ring=16384                RAMP  connections=10000 established=10000 errors=0 wallMs=648 connPerSec=15423 STEADY durationS=15.0 requests=1906674 reqPerSec=127014 targetPerSec=0 errors=0 p50us=70719 p99us=209791 p999us=561151 maxUs=631807 mode=closed-loop:latency-is-queue-depth 
+io_uring ring=32768                RAMP  connections=10000 established=10000 errors=0 wallMs=630 connPerSec=15855 STEADY durationS=15.0 requests=1889612 reqPerSec=125817 targetPerSec=0 errors=0 p50us=71423 p99us=200319 p999us=686079 maxUs=720383 mode=closed-loop:latency-is-queue-depth 
+
+=== B. saturation throughput, closed loop (latency column is queue depth, ignore it)
+nio      plaintext                 RAMP  connections=10000 established=10000 errors=0 wallMs=648 connPerSec=15421 STEADY durationS=15.0 requests=2264230 reqPerSec=150750 targetPerSec=0 errors=0 p50us=57823 p99us=213247 p999us=374527 maxUs=539135 mode=closed-loop:latency-is-queue-depth 
+epoll    plaintext                 RAMP  connections=10000 established=10000 errors=0 wallMs=591 connPerSec=16917 STEADY durationS=15.0 requests=2496278 reqPerSec=166219 targetPerSec=0 errors=0 p50us=56447 p99us=199679 p999us=347647 maxUs=554495 mode=closed-loop:latency-is-queue-depth 
+io_uring plaintext                 RAMP  connections=10000 established=10000 errors=0 wallMs=630 connPerSec=15869 STEADY durationS=15.0 requests=1890309 reqPerSec=125895 targetPerSec=0 errors=0 p50us=69823 p99us=205439 p999us=587263 maxUs=662015 mode=closed-loop:latency-is-queue-depth 
+nio      boringssl                 RAMP  connections=10000 established=10000 errors=0 wallMs=3929 connPerSec=2545 STEADY durationS=15.0 requests=1345683 reqPerSec=89640 targetPerSec=0 errors=0 p50us=103039 p99us=303103 p999us=546815 maxUs=637439 mode=closed-loop:latency-is-queue-depth 
+epoll    boringssl                 RAMP  connections=10000 established=10000 errors=0 wallMs=3909 connPerSec=2558 STEADY durationS=15.0 requests=1433178 reqPerSec=95382 targetPerSec=0 errors=0 p50us=102719 p99us=260479 p999us=512255 maxUs=658943 mode=closed-loop:latency-is-queue-depth 
+io_uring boringssl                 RAMP  connections=10000 established=10000 errors=0 wallMs=3891 connPerSec=2570 STEADY durationS=15.1 requests=1569187 reqPerSec=104256 targetPerSec=0 errors=0 p50us=90943 p99us=233471 p999us=500735 maxUs=645631 mode=closed-loop:latency-is-queue-depth 
+
+=== C. real latency, open loop at 100k req/s (well under saturation)
+nio      plaintext @100k           RAMP  connections=10000 established=10000 errors=0 wallMs=682 connPerSec=14653 STEADY durationS=15.0 requests=1501974 reqPerSec=99966 targetPerSec=100000 errors=0 p50us=84 p99us=1022975 p999us=1205247 maxUs=1375231 mode=open-loop:target-met 
+epoll    plaintext @100k           RAMP  connections=10000 established=10000 errors=0 wallMs=582 connPerSec=17178 STEADY durationS=15.0 requests=1501681 reqPerSec=99977 targetPerSec=100000 errors=0 p50us=111 p99us=1095679 p999us=1319935 maxUs=1629183 mode=open-loop:target-met 
+io_uring plaintext @100k           RAMP  connections=10000 established=10000 errors=0 wallMs=627 connPerSec=15925 STEADY durationS=15.0 requests=1501967 reqPerSec=99982 targetPerSec=100000 errors=0 p50us=337663 p99us=3547135 p999us=4184063 maxUs=4558847 mode=open-loop:target-met 
+epoll    boringssl @50k            RAMP  connections=10000 established=10000 errors=0 wallMs=3780 connPerSec=2645 STEADY durationS=15.0 requests=750821 reqPerSec=49985 targetPerSec=50000 errors=0 p50us=88 p99us=637951 p999us=813567 maxUs=944639 mode=open-loop:target-met 
+nio      boringssl @50k            RAMP  connections=10000 established=10000 errors=0 wallMs=3968 connPerSec=2520 STEADY durationS=15.0 requests=751673 reqPerSec=49991 targetPerSec=50000 errors=0 p50us=139 p99us=776703 p999us=1118207 maxUs=1293311 mode=open-loop:target-met 
+LOAD3_DONE

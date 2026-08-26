@@ -1,0 +1,27 @@
+round load1m  epoll-plain  iouring-plain  epoll-tls  iouring-tls
+1      7.30     ./thor-inversion.sh: line 25: t: unbound variable
+             ./thor-inversion.sh: line 25: t: unbound variable
+               ./thor-inversion.sh: line 25: t: unbound variable
+           ./thor-inversion.sh: line 25: t: unbound variable
+
+2      7.30     ./thor-inversion.sh: line 25: t: unbound variable
+             ./thor-inversion.sh: line 25: t: unbound variable
+               ./thor-inversion.sh: line 25: t: unbound variable
+           ./thor-inversion.sh: line 25: t: unbound variable
+
+3      7.30     ./thor-inversion.sh: line 25: t: unbound variable
+             ./thor-inversion.sh: line 25: t: unbound variable
+               ./thor-inversion.sh: line 25: t: unbound variable
+           ./thor-inversion.sh: line 25: t: unbound variable
+
+4      7.30     ./thor-inversion.sh: line 25: t: unbound variable
+             ./thor-inversion.sh: line 25: t: unbound variable
+               ./thor-inversion.sh: line 25: t: unbound variable
+           ./thor-inversion.sh: line 25: t: unbound variable
+
+5      7.30     ./thor-inversion.sh: line 25: t: unbound variable
+             ./thor-inversion.sh: line 25: t: unbound variable
+               ./thor-inversion.sh: line 25: t: unbound variable
+           ./thor-inversion.sh: line 25: t: unbound variable
+
+INVERSION_DONE

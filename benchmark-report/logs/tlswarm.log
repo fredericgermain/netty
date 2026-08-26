@@ -1,0 +1,24 @@
+port=19990 conns=10000 payload=1024 dur=10
+=== ten consecutive io_uring TLS rounds, fresh JVMs
+ur-01  rps=115260 rampConnPerSec=2490 freqKHz=3199995 tempMilliC=67000 load1m=13.75
+ur-02  rps=115974 rampConnPerSec=2481 freqKHz=3600504 tempMilliC=88000 load1m=13.81
+ur-03  rps=102510 rampConnPerSec=2245 freqKHz=3200072 tempMilliC=74000 load1m=14.28
+ur-04  rps=109626 rampConnPerSec=2582 freqKHz=3198267 tempMilliC=73000 load1m=13.98
+ur-05  rps=105812 rampConnPerSec=2461 freqKHz=3202394 tempMilliC=73000 load1m=13.84
+ur-06  rps=84074 rampConnPerSec=2497 freqKHz=3199992 tempMilliC=72000 load1m=15.08
+ur-07  rps=112307 rampConnPerSec=2492 freqKHz=3200005 tempMilliC=71000 load1m=14.57
+ur-08  rps=111544 rampConnPerSec=2620 freqKHz=3200079 tempMilliC=71000 load1m=14.05
+ur-09  rps=111966 rampConnPerSec=2574 freqKHz=3209335 tempMilliC=73000 load1m=13.68
+ur-10  rps=95151 rampConnPerSec=2597 freqKHz=3200008 tempMilliC=73000 load1m=13.77
+=== ten consecutive epoll TLS rounds, fresh JVMs
+ep-01  rps=93868 rampConnPerSec=2568 freqKHz=3499149 tempMilliC=83050 load1m=13.96
+ep-02  rps=91128 rampConnPerSec=2357 freqKHz=3200021 tempMilliC=74000 load1m=14.77
+ep-03  rps=96061 rampConnPerSec=2611 freqKHz=3200106 tempMilliC=73000 load1m=14.38
+ep-04  rps=97351 rampConnPerSec=2707 freqKHz=3202743 tempMilliC=72000 load1m=14.25
+ep-05  rps=92850 rampConnPerSec=2613 freqKHz=3200038 tempMilliC=74000 load1m=14.28
+ep-06  rps=93093 rampConnPerSec=2683 freqKHz=3197066 tempMilliC=74000 load1m=14.57
+ep-07  rps=72755 rampConnPerSec=2565 freqKHz=3199832 tempMilliC=75000 load1m=14.09
+ep-08  rps=95494 rampConnPerSec=2636 freqKHz=3199984 tempMilliC=76000 load1m=14.50
+ep-09  rps=95967 rampConnPerSec=2676 freqKHz=3200009 tempMilliC=72000 load1m=15.03
+ep-10  rps=95620 rampConnPerSec=2667 freqKHz=3199873 tempMilliC=72000 load1m=14.20
+TLSWARM_DONE

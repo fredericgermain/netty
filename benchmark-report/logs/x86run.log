@@ -1,0 +1,699 @@
+=== 1/3 boringssl-static, released 2.0.81
+  ok
+=== 2/3 boringssl-static, patched 2.0.82-SNAPSHOT (netty's boringssl-snapshot profile)
+  ok
+=== 3/3 openssl-dynamic, released 2.0.81 (x86_64 only -- no linux-aarch_64 classifier exists)
+  ok
+-rw-r--r-- 1 fred fred 15390771 Aug 25 13:42 /home/fred/tls-matrix/mb-openssl.jar
+-rw-r--r-- 1 fred fred 21472505 Aug 25 13:42 /home/fred/tls-matrix/mb-patched.jar
+-rw-r--r-- 1 fred fred 21445814 Aug 25 13:42 /home/fred/tls-matrix/mb-released.jar
+
+############ matrix: RELEASED tcnative, all three images
+==================================================================
+ cells   : 9
+ skipped : 0
+ mode    : gate
+==================================================================
+   run  eclipse-temurin:21-jdk / none
+   run  eclipse-temurin:21-jdk / boringssl
+   run  eclipse-temurin:21-jdk / openssl
+   run  eclipse-temurin:21-jdk-alpine / none
+   run  eclipse-temurin:21-jdk-alpine / boringssl
+   run  eclipse-temurin:21-jdk-alpine / openssl
+   run  amazoncorretto:21-alpine / none
+   run  amazoncorretto:21-alpine / boringssl
+   run  amazoncorretto:21-alpine / openssl
+
+==================================================================
+ image     : eclipse-temurin:21-jdk
+ tcnative  : none
+ mode      : gate
+ benchmark : SslEngineHandshakeBenchmark
+==================================================================
+   arch=x86_64
+   libc=glibc
+   java=openjdk version "21.0.12" 2026-07-21 LTS
+   tcnativeVersion=BoringSSL
+-- running
+
+
+Result "io.netty.microbench.handler.ssl.SslEngineHandshakeBenchmark.handshake":
+  2928.620 us/op
+
+
+# Run complete. Total time: 00:00:13
+
+REMEMBER: The numbers below are just data. To gain reusable insights, you need to follow up on
+why the numbers are the way they are. Use profilers (see -prof, -lprof), design factorial
+experiments, perform baseline and negative tests that provide experimental control, make sure
+the benchmarking environment is safe on JVM/OS/HW level, ask for reviews from the domain experts.
+Do not assume the numbers tell you what you want them to tell.
+
+NOTE: Current JVM experimentally supports Compiler Blackholes, and they are in use. Please exercise
+extra caution when trusting the results, look into the generated code to check the benchmark still
+works, and factor in a small probability of new VM bugs. Additionally, while comparisons between
+different JVMs are already problematic, the performance difference caused by different Blackhole
+modes can be very significant. Please make sure you use the consistent Blackhole mode for comparisons.
+
+Benchmark                              (bufferType)                               (cipher)  (sslProvider)  Mode  Cnt     Score   Error  Units
+SslEngineHandshakeBenchmark.handshake        DIRECT  TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256            JDK  avgt    2  2619.640          us/op
+SslEngineHandshakeBenchmark.handshake        DIRECT                 TLS_AES_128_GCM_SHA256            JDK  avgt    2  2928.620          us/op
+
+Benchmark result is saved to /out/jmh.json
+-- verdict
+   results   : 2
+   tcnative  : BoringSSL
+   written   : /home/fred/tls-matrix/res-released/eclipse-temurin-21-jdk__none__gate.jsonl
+tls-matrix: PASS on eclipse-temurin:21-jdk / none
+
+==================================================================
+ image     : eclipse-temurin:21-jdk
+ tcnative  : boringssl
+ mode      : gate
+ benchmark : SslEngineHandshakeBenchmark
+==================================================================
+   arch=x86_64
+   libc=glibc
+   java=openjdk version "21.0.12" 2026-07-21 LTS
+   tcnativeVersion=BoringSSL
+-- running
+Result "io.netty.microbench.handler.ssl.SslEngineHandshakeBenchmark.handshake":
+  1392.203 us/op
+
+
+# Run complete. Total time: 00:00:26
+
+REMEMBER: The numbers below are just data. To gain reusable insights, you need to follow up on
+why the numbers are the way they are. Use profilers (see -prof, -lprof), design factorial
+experiments, perform baseline and negative tests that provide experimental control, make sure
+the benchmarking environment is safe on JVM/OS/HW level, ask for reviews from the domain experts.
+Do not assume the numbers tell you what you want them to tell.
+
+NOTE: Current JVM experimentally supports Compiler Blackholes, and they are in use. Please exercise
+extra caution when trusting the results, look into the generated code to check the benchmark still
+works, and factor in a small probability of new VM bugs. Additionally, while comparisons between
+different JVMs are already problematic, the performance difference caused by different Blackhole
+modes can be very significant. Please make sure you use the consistent Blackhole mode for comparisons.
+
+Benchmark                              (bufferType)                               (cipher)  (sslProvider)  Mode  Cnt     Score   Error  Units
+SslEngineHandshakeBenchmark.handshake        DIRECT  TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256            JDK  avgt    2  2523.816          us/op
+SslEngineHandshakeBenchmark.handshake        DIRECT  TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256        OPENSSL  avgt    2   767.251          us/op
+SslEngineHandshakeBenchmark.handshake        DIRECT                 TLS_AES_128_GCM_SHA256            JDK  avgt    2  2923.397          us/op
+SslEngineHandshakeBenchmark.handshake        DIRECT                 TLS_AES_128_GCM_SHA256        OPENSSL  avgt    2  1392.203          us/op
+
+Benchmark result is saved to /out/jmh.json
+-- verdict
+   results   : 4
+   tcnative  : BoringSSL
+   written   : /home/fred/tls-matrix/res-released/eclipse-temurin-21-jdk__boringssl__gate.jsonl
+tls-matrix: PASS on eclipse-temurin:21-jdk / boringssl
+
+==================================================================
+ image     : eclipse-temurin:21-jdk
+ tcnative  : openssl
+ mode      : gate
+ benchmark : SslEngineHandshakeBenchmark
+==================================================================
+   arch=x86_64
+   libc=glibc
+   java=openjdk version "21.0.12" 2026-07-21 LTS
+   tcnativeVersion=OpenSSL 3.5.5 27 Jan 2026
+-- running
+Result "io.netty.microbench.handler.ssl.SslEngineHandshakeBenchmark.handshake":
+  1147.402 us/op
+
+
+# Run complete. Total time: 00:00:26
+
+REMEMBER: The numbers below are just data. To gain reusable insights, you need to follow up on
+why the numbers are the way they are. Use profilers (see -prof, -lprof), design factorial
+experiments, perform baseline and negative tests that provide experimental control, make sure
+the benchmarking environment is safe on JVM/OS/HW level, ask for reviews from the domain experts.
+Do not assume the numbers tell you what you want them to tell.
+
+NOTE: Current JVM experimentally supports Compiler Blackholes, and they are in use. Please exercise
+extra caution when trusting the results, look into the generated code to check the benchmark still
+works, and factor in a small probability of new VM bugs. Additionally, while comparisons between
+different JVMs are already problematic, the performance difference caused by different Blackhole
+modes can be very significant. Please make sure you use the consistent Blackhole mode for comparisons.
+
+Benchmark                              (bufferType)                               (cipher)  (sslProvider)  Mode  Cnt     Score   Error  Units
+SslEngineHandshakeBenchmark.handshake        DIRECT  TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256            JDK  avgt    2  2495.215          us/op
+SslEngineHandshakeBenchmark.handshake        DIRECT  TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256        OPENSSL  avgt    2   992.576          us/op
+SslEngineHandshakeBenchmark.handshake        DIRECT                 TLS_AES_128_GCM_SHA256            JDK  avgt    2  2875.193          us/op
+SslEngineHandshakeBenchmark.handshake        DIRECT                 TLS_AES_128_GCM_SHA256        OPENSSL  avgt    2  1147.402          us/op
+
+Benchmark result is saved to /out/jmh.json
+-- verdict
+   results   : 4
+   tcnative  : OpenSSL 3.5.5 27 Jan 2026
+   written   : /home/fred/tls-matrix/res-released/eclipse-temurin-21-jdk__openssl__gate.jsonl
+tls-matrix: PASS on eclipse-temurin:21-jdk / openssl
+
+==================================================================
+ image     : eclipse-temurin:21-jdk-alpine
+ tcnative  : none
+ mode      : gate
+ benchmark : SslEngineHandshakeBenchmark
+==================================================================
+   arch=x86_64
+   libc=musl
+   java=openjdk version "21.0.11" 2026-04-21 LTS
+   tcnativeVersion=unavailable: java.lang.IllegalArgumentException: Failed to load any of the given libraries: [netty_tcnative_linux_x86_64, netty_tcnative_linux_x86_64_fedora, netty_tcnative_x86_64, netty_tcnative]
+-- running
+
+
+Result "io.netty.microbench.handler.ssl.SslEngineHandshakeBenchmark.handshake":
+  3007.328 us/op
+
+
+# Run complete. Total time: 00:00:13
+
+REMEMBER: The numbers below are just data. To gain reusable insights, you need to follow up on
+why the numbers are the way they are. Use profilers (see -prof, -lprof), design factorial
+experiments, perform baseline and negative tests that provide experimental control, make sure
+the benchmarking environment is safe on JVM/OS/HW level, ask for reviews from the domain experts.
+Do not assume the numbers tell you what you want them to tell.
+
+NOTE: Current JVM experimentally supports Compiler Blackholes, and they are in use. Please exercise
+extra caution when trusting the results, look into the generated code to check the benchmark still
+works, and factor in a small probability of new VM bugs. Additionally, while comparisons between
+different JVMs are already problematic, the performance difference caused by different Blackhole
+modes can be very significant. Please make sure you use the consistent Blackhole mode for comparisons.
+
+Benchmark                              (bufferType)                               (cipher)  (sslProvider)  Mode  Cnt     Score   Error  Units
+SslEngineHandshakeBenchmark.handshake        DIRECT  TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256            JDK  avgt    2  2591.350          us/op
+SslEngineHandshakeBenchmark.handshake        DIRECT                 TLS_AES_128_GCM_SHA256            JDK  avgt    2  3007.328          us/op
+
+Benchmark result is saved to /out/jmh.json
+-- verdict
+   results   : 2
+   mechanism : library-load
+   tcnative  : unavailable: java.lang.IllegalArgumentException: Failed to load any of the given libraries: [netty_tcnative_linux_x86_64, netty_tcnative_linux_x86_64_fedora, netty_tcnative_x86_64, netty_tcnative]
+   written   : /home/fred/tls-matrix/res-released/eclipse-temurin-21-jdk-alpine__none__gate.jsonl
+tls-matrix: PASS on eclipse-temurin:21-jdk-alpine / none
+
+==================================================================
+ image     : eclipse-temurin:21-jdk-alpine
+ tcnative  : boringssl
+ mode      : gate
+ benchmark : SslEngineHandshakeBenchmark
+==================================================================
+   arch=x86_64
+   libc=musl
+   java=openjdk version "21.0.11" 2026-04-21 LTS
+   tcnativeVersion=unavailable: java.lang.IllegalArgumentException: Failed to load any of the given libraries: [netty_tcnative_linux_x86_64, netty_tcnative_linux_x86_64_fedora, netty_tcnative_x86_64, netty_tcnative]
+-- running
+				at io.netty.util.internal.NativeLibraryLoader.loadLibrary(NativeLibraryLoader.java:387)
+				... 23 more
+
+
+
+
+# Run complete. Total time: 00:00:13
+
+REMEMBER: The numbers below are just data. To gain reusable insights, you need to follow up on
+why the numbers are the way they are. Use profilers (see -prof, -lprof), design factorial
+experiments, perform baseline and negative tests that provide experimental control, make sure
+the benchmarking environment is safe on JVM/OS/HW level, ask for reviews from the domain experts.
+Do not assume the numbers tell you what you want them to tell.
+
+NOTE: Current JVM experimentally supports Compiler Blackholes, and they are in use. Please exercise
+extra caution when trusting the results, look into the generated code to check the benchmark still
+works, and factor in a small probability of new VM bugs. Additionally, while comparisons between
+different JVMs are already problematic, the performance difference caused by different Blackhole
+modes can be very significant. Please make sure you use the consistent Blackhole mode for comparisons.
+
+Benchmark                              (bufferType)                               (cipher)  (sslProvider)  Mode  Cnt     Score   Error  Units
+SslEngineHandshakeBenchmark.handshake        DIRECT  TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256            JDK  avgt    2  2475.001          us/op
+SslEngineHandshakeBenchmark.handshake        DIRECT                 TLS_AES_128_GCM_SHA256            JDK  avgt    2  3022.953          us/op
+
+Benchmark result is saved to /out/jmh.json
+-- verdict
+   results   : 2
+   mechanism : library-load
+   tcnative  : unavailable: java.lang.IllegalArgumentException: Failed to load any of the given libraries: [netty_tcnative_linux_x86_64, netty_tcnative_linux_x86_64_fedora, netty_tcnative_x86_64, netty_tcnative]
+   written   : /home/fred/tls-matrix/res-released/eclipse-temurin-21-jdk-alpine__boringssl__gate.jsonl
+   FAIL: expected at least 4 benchmark result(s), got 2 -- JMH exits 0 even when every benchmark fails to initialize, so check the run log
+   FAIL: tcnative was requested as 'boringssl' but the image reports: unavailable: java.lang.IllegalArgumentException: Failed to load any of the given libraries: [netty_tcnative_linux_x86_64, netty_tcnative_linux_x86_64_fedora, netty_tcnative_x86_64, netty_tcnative]
+tls-matrix: FAIL on eclipse-temurin:21-jdk-alpine / boringssl
+
+==================================================================
+ image     : eclipse-temurin:21-jdk-alpine
+ tcnative  : openssl
+ mode      : gate
+ benchmark : SslEngineHandshakeBenchmark
+==================================================================
+   arch=x86_64
+   libc=musl
+   java=openjdk version "21.0.11" 2026-04-21 LTS
+   tcnativeVersion=OpenSSL 3.5.7 9 Jun 2026
+-- running
+Result "io.netty.microbench.handler.ssl.SslEngineHandshakeBenchmark.handshake":
+  1301.291 us/op
+
+
+# Run complete. Total time: 00:00:26
+
+REMEMBER: The numbers below are just data. To gain reusable insights, you need to follow up on
+why the numbers are the way they are. Use profilers (see -prof, -lprof), design factorial
+experiments, perform baseline and negative tests that provide experimental control, make sure
+the benchmarking environment is safe on JVM/OS/HW level, ask for reviews from the domain experts.
+Do not assume the numbers tell you what you want them to tell.
+
+NOTE: Current JVM experimentally supports Compiler Blackholes, and they are in use. Please exercise
+extra caution when trusting the results, look into the generated code to check the benchmark still
+works, and factor in a small probability of new VM bugs. Additionally, while comparisons between
+different JVMs are already problematic, the performance difference caused by different Blackhole
+modes can be very significant. Please make sure you use the consistent Blackhole mode for comparisons.
+
+Benchmark                              (bufferType)                               (cipher)  (sslProvider)  Mode  Cnt     Score   Error  Units
+SslEngineHandshakeBenchmark.handshake        DIRECT  TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256            JDK  avgt    2  2476.132          us/op
+SslEngineHandshakeBenchmark.handshake        DIRECT  TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256        OPENSSL  avgt    2  1238.371          us/op
+SslEngineHandshakeBenchmark.handshake        DIRECT                 TLS_AES_128_GCM_SHA256            JDK  avgt    2  2923.632          us/op
+SslEngineHandshakeBenchmark.handshake        DIRECT                 TLS_AES_128_GCM_SHA256        OPENSSL  avgt    2  1301.291          us/op
+
+Benchmark result is saved to /out/jmh.json
+-- verdict
+   results   : 4
+   tcnative  : OpenSSL 3.5.7 9 Jun 2026
+   written   : /home/fred/tls-matrix/res-released/eclipse-temurin-21-jdk-alpine__openssl__gate.jsonl
+tls-matrix: PASS on eclipse-temurin:21-jdk-alpine / openssl
+
+==================================================================
+ image     : amazoncorretto:21-alpine
+ tcnative  : none
+ mode      : gate
+ benchmark : SslEngineHandshakeBenchmark
+==================================================================
+   arch=x86_64
+   libc=musl
+   java=openjdk version "21.0.12" 2026-07-21 LTS
+   tcnativeVersion=unavailable: java.lang.IllegalArgumentException: Failed to load any of the given libraries: [netty_tcnative_linux_x86_64, netty_tcnative_linux_x86_64_fedora, netty_tcnative_x86_64, netty_tcnative]
+-- running
+
+
+Result "io.netty.microbench.handler.ssl.SslEngineHandshakeBenchmark.handshake":
+  2942.755 us/op
+
+
+# Run complete. Total time: 00:00:13
+
+REMEMBER: The numbers below are just data. To gain reusable insights, you need to follow up on
+why the numbers are the way they are. Use profilers (see -prof, -lprof), design factorial
+experiments, perform baseline and negative tests that provide experimental control, make sure
+the benchmarking environment is safe on JVM/OS/HW level, ask for reviews from the domain experts.
+Do not assume the numbers tell you what you want them to tell.
+
+NOTE: Current JVM experimentally supports Compiler Blackholes, and they are in use. Please exercise
+extra caution when trusting the results, look into the generated code to check the benchmark still
+works, and factor in a small probability of new VM bugs. Additionally, while comparisons between
+different JVMs are already problematic, the performance difference caused by different Blackhole
+modes can be very significant. Please make sure you use the consistent Blackhole mode for comparisons.
+
+Benchmark                              (bufferType)                               (cipher)  (sslProvider)  Mode  Cnt     Score   Error  Units
+SslEngineHandshakeBenchmark.handshake        DIRECT  TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256            JDK  avgt    2  2535.876          us/op
+SslEngineHandshakeBenchmark.handshake        DIRECT                 TLS_AES_128_GCM_SHA256            JDK  avgt    2  2942.755          us/op
+
+Benchmark result is saved to /out/jmh.json
+-- verdict
+   results   : 2
+   mechanism : library-load
+   tcnative  : unavailable: java.lang.IllegalArgumentException: Failed to load any of the given libraries: [netty_tcnative_linux_x86_64, netty_tcnative_linux_x86_64_fedora, netty_tcnative_x86_64, netty_tcnative]
+   written   : /home/fred/tls-matrix/res-released/amazoncorretto-21-alpine__none__gate.jsonl
+tls-matrix: PASS on amazoncorretto:21-alpine / none
+
+==================================================================
+ image     : amazoncorretto:21-alpine
+ tcnative  : boringssl
+ mode      : gate
+ benchmark : SslEngineHandshakeBenchmark
+==================================================================
+   arch=x86_64
+   libc=musl
+   java=openjdk version "21.0.12" 2026-07-21 LTS
+   tcnativeVersion=unavailable: java.lang.IllegalArgumentException: Failed to load any of the given libraries: [netty_tcnative_linux_x86_64, netty_tcnative_linux_x86_64_fedora, netty_tcnative_x86_64, netty_tcnative]
+-- running
+				at io.netty.util.internal.NativeLibraryLoader.loadLibrary(NativeLibraryLoader.java:387)
+				... 23 more
+
+
+
+
+# Run complete. Total time: 00:00:13
+
+REMEMBER: The numbers below are just data. To gain reusable insights, you need to follow up on
+why the numbers are the way they are. Use profilers (see -prof, -lprof), design factorial
+experiments, perform baseline and negative tests that provide experimental control, make sure
+the benchmarking environment is safe on JVM/OS/HW level, ask for reviews from the domain experts.
+Do not assume the numbers tell you what you want them to tell.
+
+NOTE: Current JVM experimentally supports Compiler Blackholes, and they are in use. Please exercise
+extra caution when trusting the results, look into the generated code to check the benchmark still
+works, and factor in a small probability of new VM bugs. Additionally, while comparisons between
+different JVMs are already problematic, the performance difference caused by different Blackhole
+modes can be very significant. Please make sure you use the consistent Blackhole mode for comparisons.
+
+Benchmark                              (bufferType)                               (cipher)  (sslProvider)  Mode  Cnt     Score   Error  Units
+SslEngineHandshakeBenchmark.handshake        DIRECT  TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256            JDK  avgt    2  2514.514          us/op
+SslEngineHandshakeBenchmark.handshake        DIRECT                 TLS_AES_128_GCM_SHA256            JDK  avgt    2  2992.213          us/op
+
+Benchmark result is saved to /out/jmh.json
+-- verdict
+   results   : 2
+   mechanism : library-load
+   tcnative  : unavailable: java.lang.IllegalArgumentException: Failed to load any of the given libraries: [netty_tcnative_linux_x86_64, netty_tcnative_linux_x86_64_fedora, netty_tcnative_x86_64, netty_tcnative]
+   written   : /home/fred/tls-matrix/res-released/amazoncorretto-21-alpine__boringssl__gate.jsonl
+   FAIL: expected at least 4 benchmark result(s), got 2 -- JMH exits 0 even when every benchmark fails to initialize, so check the run log
+   FAIL: tcnative was requested as 'boringssl' but the image reports: unavailable: java.lang.IllegalArgumentException: Failed to load any of the given libraries: [netty_tcnative_linux_x86_64, netty_tcnative_linux_x86_64_fedora, netty_tcnative_x86_64, netty_tcnative]
+tls-matrix: FAIL on amazoncorretto:21-alpine / boringssl
+
+==================================================================
+ image     : amazoncorretto:21-alpine
+ tcnative  : openssl
+ mode      : gate
+ benchmark : SslEngineHandshakeBenchmark
+==================================================================
+   arch=x86_64
+   libc=musl
+   java=openjdk version "21.0.12" 2026-07-21 LTS
+   tcnativeVersion=OpenSSL 3.5.7 9 Jun 2026
+-- running
+Result "io.netty.microbench.handler.ssl.SslEngineHandshakeBenchmark.handshake":
+  1258.569 us/op
+
+
+# Run complete. Total time: 00:00:26
+
+REMEMBER: The numbers below are just data. To gain reusable insights, you need to follow up on
+why the numbers are the way they are. Use profilers (see -prof, -lprof), design factorial
+experiments, perform baseline and negative tests that provide experimental control, make sure
+the benchmarking environment is safe on JVM/OS/HW level, ask for reviews from the domain experts.
+Do not assume the numbers tell you what you want them to tell.
+
+NOTE: Current JVM experimentally supports Compiler Blackholes, and they are in use. Please exercise
+extra caution when trusting the results, look into the generated code to check the benchmark still
+works, and factor in a small probability of new VM bugs. Additionally, while comparisons between
+different JVMs are already problematic, the performance difference caused by different Blackhole
+modes can be very significant. Please make sure you use the consistent Blackhole mode for comparisons.
+
+Benchmark                              (bufferType)                               (cipher)  (sslProvider)  Mode  Cnt     Score   Error  Units
+SslEngineHandshakeBenchmark.handshake        DIRECT  TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256            JDK  avgt    2  2534.811          us/op
+SslEngineHandshakeBenchmark.handshake        DIRECT  TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256        OPENSSL  avgt    2  1197.104          us/op
+SslEngineHandshakeBenchmark.handshake        DIRECT                 TLS_AES_128_GCM_SHA256            JDK  avgt    2  2908.184          us/op
+SslEngineHandshakeBenchmark.handshake        DIRECT                 TLS_AES_128_GCM_SHA256        OPENSSL  avgt    2  1258.569          us/op
+
+Benchmark result is saved to /out/jmh.json
+-- verdict
+   results   : 4
+   tcnative  : OpenSSL 3.5.7 9 Jun 2026
+   written   : /home/fred/tls-matrix/res-released/amazoncorretto-21-alpine__openssl__gate.jsonl
+tls-matrix: PASS on amazoncorretto:21-alpine / openssl
+
+==================================================================
+ passed  : 7
+ failed  : 2
+   FAIL eclipse-temurin:21-jdk-alpine / boringssl
+   FAIL amazoncorretto:21-alpine / boringssl
+ results : /home/fred/tls-matrix/res-released
+==================================================================
+RELEASED_EXIT=1
+
+############ matrix: PATCHED tcnative, all three images
+==================================================================
+ cells   : 6
+ skipped : 3
+ mode    : gate
+==================================================================
+   run  eclipse-temurin:21-jdk / none
+   run  eclipse-temurin:21-jdk / boringssl
+   run  eclipse-temurin:21-jdk-alpine / none
+   run  eclipse-temurin:21-jdk-alpine / boringssl
+   run  amazoncorretto:21-alpine / none
+   run  amazoncorretto:21-alpine / boringssl
+   SKIP eclipse-temurin:21-jdk / openssl -- no jar for this flavour
+   SKIP eclipse-temurin:21-jdk-alpine / openssl -- no jar for this flavour
+   SKIP amazoncorretto:21-alpine / openssl -- no jar for this flavour
+
+==================================================================
+ image     : eclipse-temurin:21-jdk
+ tcnative  : none
+ mode      : gate
+ benchmark : SslEngineHandshakeBenchmark
+==================================================================
+   arch=x86_64
+   libc=glibc
+   java=openjdk version "21.0.12" 2026-07-21 LTS
+   tcnativeVersion=BoringSSL
+-- running
+
+
+Result "io.netty.microbench.handler.ssl.SslEngineHandshakeBenchmark.handshake":
+  2962.288 us/op
+
+
+# Run complete. Total time: 00:00:13
+
+REMEMBER: The numbers below are just data. To gain reusable insights, you need to follow up on
+why the numbers are the way they are. Use profilers (see -prof, -lprof), design factorial
+experiments, perform baseline and negative tests that provide experimental control, make sure
+the benchmarking environment is safe on JVM/OS/HW level, ask for reviews from the domain experts.
+Do not assume the numbers tell you what you want them to tell.
+
+NOTE: Current JVM experimentally supports Compiler Blackholes, and they are in use. Please exercise
+extra caution when trusting the results, look into the generated code to check the benchmark still
+works, and factor in a small probability of new VM bugs. Additionally, while comparisons between
+different JVMs are already problematic, the performance difference caused by different Blackhole
+modes can be very significant. Please make sure you use the consistent Blackhole mode for comparisons.
+
+Benchmark                              (bufferType)                               (cipher)  (sslProvider)  Mode  Cnt     Score   Error  Units
+SslEngineHandshakeBenchmark.handshake        DIRECT  TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256            JDK  avgt    2  2507.812          us/op
+SslEngineHandshakeBenchmark.handshake        DIRECT                 TLS_AES_128_GCM_SHA256            JDK  avgt    2  2962.288          us/op
+
+Benchmark result is saved to /out/jmh.json
+-- verdict
+   results   : 2
+   tcnative  : BoringSSL
+   written   : /home/fred/tls-matrix/res-patched/eclipse-temurin-21-jdk__none__gate.jsonl
+tls-matrix: PASS on eclipse-temurin:21-jdk / none
+
+==================================================================
+ image     : eclipse-temurin:21-jdk
+ tcnative  : boringssl
+ mode      : gate
+ benchmark : SslEngineHandshakeBenchmark
+==================================================================
+   arch=x86_64
+   libc=glibc
+   java=openjdk version "21.0.12" 2026-07-21 LTS
+   tcnativeVersion=BoringSSL
+-- running
+Result "io.netty.microbench.handler.ssl.SslEngineHandshakeBenchmark.handshake":
+  1387.226 us/op
+
+
+# Run complete. Total time: 00:00:26
+
+REMEMBER: The numbers below are just data. To gain reusable insights, you need to follow up on
+why the numbers are the way they are. Use profilers (see -prof, -lprof), design factorial
+experiments, perform baseline and negative tests that provide experimental control, make sure
+the benchmarking environment is safe on JVM/OS/HW level, ask for reviews from the domain experts.
+Do not assume the numbers tell you what you want them to tell.
+
+NOTE: Current JVM experimentally supports Compiler Blackholes, and they are in use. Please exercise
+extra caution when trusting the results, look into the generated code to check the benchmark still
+works, and factor in a small probability of new VM bugs. Additionally, while comparisons between
+different JVMs are already problematic, the performance difference caused by different Blackhole
+modes can be very significant. Please make sure you use the consistent Blackhole mode for comparisons.
+
+Benchmark                              (bufferType)                               (cipher)  (sslProvider)  Mode  Cnt     Score   Error  Units
+SslEngineHandshakeBenchmark.handshake        DIRECT  TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256            JDK  avgt    2  2548.518          us/op
+SslEngineHandshakeBenchmark.handshake        DIRECT  TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256        OPENSSL  avgt    2   762.303          us/op
+SslEngineHandshakeBenchmark.handshake        DIRECT                 TLS_AES_128_GCM_SHA256            JDK  avgt    2  2887.396          us/op
+SslEngineHandshakeBenchmark.handshake        DIRECT                 TLS_AES_128_GCM_SHA256        OPENSSL  avgt    2  1387.226          us/op
+
+Benchmark result is saved to /out/jmh.json
+-- verdict
+   results   : 4
+   tcnative  : BoringSSL
+   written   : /home/fred/tls-matrix/res-patched/eclipse-temurin-21-jdk__boringssl__gate.jsonl
+tls-matrix: PASS on eclipse-temurin:21-jdk / boringssl
+
+==================================================================
+ image     : eclipse-temurin:21-jdk-alpine
+ tcnative  : none
+ mode      : gate
+ benchmark : SslEngineHandshakeBenchmark
+==================================================================
+   arch=x86_64
+   libc=musl
+   java=openjdk version "21.0.11" 2026-04-21 LTS
+   tcnativeVersion=BoringSSL
+-- running
+
+
+Result "io.netty.microbench.handler.ssl.SslEngineHandshakeBenchmark.handshake":
+  3013.188 us/op
+
+
+# Run complete. Total time: 00:00:13
+
+REMEMBER: The numbers below are just data. To gain reusable insights, you need to follow up on
+why the numbers are the way they are. Use profilers (see -prof, -lprof), design factorial
+experiments, perform baseline and negative tests that provide experimental control, make sure
+the benchmarking environment is safe on JVM/OS/HW level, ask for reviews from the domain experts.
+Do not assume the numbers tell you what you want them to tell.
+
+NOTE: Current JVM experimentally supports Compiler Blackholes, and they are in use. Please exercise
+extra caution when trusting the results, look into the generated code to check the benchmark still
+works, and factor in a small probability of new VM bugs. Additionally, while comparisons between
+different JVMs are already problematic, the performance difference caused by different Blackhole
+modes can be very significant. Please make sure you use the consistent Blackhole mode for comparisons.
+
+Benchmark                              (bufferType)                               (cipher)  (sslProvider)  Mode  Cnt     Score   Error  Units
+SslEngineHandshakeBenchmark.handshake        DIRECT  TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256            JDK  avgt    2  2590.446          us/op
+SslEngineHandshakeBenchmark.handshake        DIRECT                 TLS_AES_128_GCM_SHA256            JDK  avgt    2  3013.188          us/op
+
+Benchmark result is saved to /out/jmh.json
+-- verdict
+   results   : 2
+   tcnative  : BoringSSL
+   written   : /home/fred/tls-matrix/res-patched/eclipse-temurin-21-jdk-alpine__none__gate.jsonl
+tls-matrix: PASS on eclipse-temurin:21-jdk-alpine / none
+
+==================================================================
+ image     : eclipse-temurin:21-jdk-alpine
+ tcnative  : boringssl
+ mode      : gate
+ benchmark : SslEngineHandshakeBenchmark
+==================================================================
+   arch=x86_64
+   libc=musl
+   java=openjdk version "21.0.11" 2026-04-21 LTS
+   tcnativeVersion=BoringSSL
+-- running
+Result "io.netty.microbench.handler.ssl.SslEngineHandshakeBenchmark.handshake":
+  1459.042 us/op
+
+
+# Run complete. Total time: 00:00:26
+
+REMEMBER: The numbers below are just data. To gain reusable insights, you need to follow up on
+why the numbers are the way they are. Use profilers (see -prof, -lprof), design factorial
+experiments, perform baseline and negative tests that provide experimental control, make sure
+the benchmarking environment is safe on JVM/OS/HW level, ask for reviews from the domain experts.
+Do not assume the numbers tell you what you want them to tell.
+
+NOTE: Current JVM experimentally supports Compiler Blackholes, and they are in use. Please exercise
+extra caution when trusting the results, look into the generated code to check the benchmark still
+works, and factor in a small probability of new VM bugs. Additionally, while comparisons between
+different JVMs are already problematic, the performance difference caused by different Blackhole
+modes can be very significant. Please make sure you use the consistent Blackhole mode for comparisons.
+
+Benchmark                              (bufferType)                               (cipher)  (sslProvider)  Mode  Cnt     Score   Error  Units
+SslEngineHandshakeBenchmark.handshake        DIRECT  TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256            JDK  avgt    2  2534.050          us/op
+SslEngineHandshakeBenchmark.handshake        DIRECT  TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256        OPENSSL  avgt    2   807.641          us/op
+SslEngineHandshakeBenchmark.handshake        DIRECT                 TLS_AES_128_GCM_SHA256            JDK  avgt    2  2979.678          us/op
+SslEngineHandshakeBenchmark.handshake        DIRECT                 TLS_AES_128_GCM_SHA256        OPENSSL  avgt    2  1459.042          us/op
+
+Benchmark result is saved to /out/jmh.json
+-- verdict
+   results   : 4
+   tcnative  : BoringSSL
+   written   : /home/fred/tls-matrix/res-patched/eclipse-temurin-21-jdk-alpine__boringssl__gate.jsonl
+tls-matrix: PASS on eclipse-temurin:21-jdk-alpine / boringssl
+
+==================================================================
+ image     : amazoncorretto:21-alpine
+ tcnative  : none
+ mode      : gate
+ benchmark : SslEngineHandshakeBenchmark
+==================================================================
+   arch=x86_64
+   libc=musl
+   java=openjdk version "21.0.12" 2026-07-21 LTS
+   tcnativeVersion=BoringSSL
+-- running
+
+
+Result "io.netty.microbench.handler.ssl.SslEngineHandshakeBenchmark.handshake":
+  3011.195 us/op
+
+
+# Run complete. Total time: 00:00:13
+
+REMEMBER: The numbers below are just data. To gain reusable insights, you need to follow up on
+why the numbers are the way they are. Use profilers (see -prof, -lprof), design factorial
+experiments, perform baseline and negative tests that provide experimental control, make sure
+the benchmarking environment is safe on JVM/OS/HW level, ask for reviews from the domain experts.
+Do not assume the numbers tell you what you want them to tell.
+
+NOTE: Current JVM experimentally supports Compiler Blackholes, and they are in use. Please exercise
+extra caution when trusting the results, look into the generated code to check the benchmark still
+works, and factor in a small probability of new VM bugs. Additionally, while comparisons between
+different JVMs are already problematic, the performance difference caused by different Blackhole
+modes can be very significant. Please make sure you use the consistent Blackhole mode for comparisons.
+
+Benchmark                              (bufferType)                               (cipher)  (sslProvider)  Mode  Cnt     Score   Error  Units
+SslEngineHandshakeBenchmark.handshake        DIRECT  TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256            JDK  avgt    2  2598.728          us/op
+SslEngineHandshakeBenchmark.handshake        DIRECT                 TLS_AES_128_GCM_SHA256            JDK  avgt    2  3011.195          us/op
+
+Benchmark result is saved to /out/jmh.json
+-- verdict
+   results   : 2
+   tcnative  : BoringSSL
+   written   : /home/fred/tls-matrix/res-patched/amazoncorretto-21-alpine__none__gate.jsonl
+tls-matrix: PASS on amazoncorretto:21-alpine / none
+
+==================================================================
+ image     : amazoncorretto:21-alpine
+ tcnative  : boringssl
+ mode      : gate
+ benchmark : SslEngineHandshakeBenchmark
+==================================================================
+   arch=x86_64
+   libc=musl
+   java=openjdk version "21.0.12" 2026-07-21 LTS
+   tcnativeVersion=BoringSSL
+-- running
+Result "io.netty.microbench.handler.ssl.SslEngineHandshakeBenchmark.handshake":
+  1457.244 us/op
+
+
+# Run complete. Total time: 00:00:26
+
+REMEMBER: The numbers below are just data. To gain reusable insights, you need to follow up on
+why the numbers are the way they are. Use profilers (see -prof, -lprof), design factorial
+experiments, perform baseline and negative tests that provide experimental control, make sure
+the benchmarking environment is safe on JVM/OS/HW level, ask for reviews from the domain experts.
+Do not assume the numbers tell you what you want them to tell.
+
+NOTE: Current JVM experimentally supports Compiler Blackholes, and they are in use. Please exercise
+extra caution when trusting the results, look into the generated code to check the benchmark still
+works, and factor in a small probability of new VM bugs. Additionally, while comparisons between
+different JVMs are already problematic, the performance difference caused by different Blackhole
+modes can be very significant. Please make sure you use the consistent Blackhole mode for comparisons.
+
+Benchmark                              (bufferType)                               (cipher)  (sslProvider)  Mode  Cnt     Score   Error  Units
+SslEngineHandshakeBenchmark.handshake        DIRECT  TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256            JDK  avgt    2  2523.959          us/op
+SslEngineHandshakeBenchmark.handshake        DIRECT  TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256        OPENSSL  avgt    2   781.079          us/op
+SslEngineHandshakeBenchmark.handshake        DIRECT                 TLS_AES_128_GCM_SHA256            JDK  avgt    2  2982.320          us/op
+SslEngineHandshakeBenchmark.handshake        DIRECT                 TLS_AES_128_GCM_SHA256        OPENSSL  avgt    2  1457.244          us/op
+
+Benchmark result is saved to /out/jmh.json
+-- verdict
+   results   : 4
+   tcnative  : BoringSSL
+   written   : /home/fred/tls-matrix/res-patched/amazoncorretto-21-alpine__boringssl__gate.jsonl
+tls-matrix: PASS on amazoncorretto:21-alpine / boringssl
+
+==================================================================
+ passed  : 6
+ failed  : 0
+   SKIP eclipse-temurin:21-jdk / openssl -- no jar for this flavour
+   SKIP eclipse-temurin:21-jdk-alpine / openssl -- no jar for this flavour
+   SKIP amazoncorretto:21-alpine / openssl -- no jar for this flavour
+ results : /home/fred/tls-matrix/res-patched
+==================================================================
+PATCHED_EXIT=0
+ALL_DONE

@@ -1,0 +1,55 @@
+############ insight openssl-dynamic on eclipse-temurin:21-jdk
+SslEngineHandshakeBenchmark.handshake        DIRECT                 TLS_AES_128_GCM_SHA256        OPENSSL  avgt   30  1061.068 ± 18.644  us/op
+
+Benchmark result is saved to /out/jmh.json
+-- verdict
+   results   : 4
+   tcnative  : OpenSSL 3.5.5 27 Jan 2026
+   written   : /home/fred/tls-matrix/insight/eclipse-temurin-21-jdk__openssl__insight.jsonl
+tls-matrix: PASS on eclipse-temurin:21-jdk / openssl
+############ insight openssl-dynamic on eclipse-temurin:21-jdk-alpine
+SslEngineHandshakeBenchmark.handshake        DIRECT                 TLS_AES_128_GCM_SHA256        OPENSSL  avgt   30  1240.616 ± 39.776  us/op
+
+Benchmark result is saved to /out/jmh.json
+-- verdict
+   results   : 4
+   tcnative  : OpenSSL 3.5.7 9 Jun 2026
+   written   : /home/fred/tls-matrix/insight/eclipse-temurin-21-jdk-alpine__openssl__insight.jsonl
+tls-matrix: PASS on eclipse-temurin:21-jdk-alpine / openssl
+############ insight openssl-dynamic on amazoncorretto:21-alpine
+SslEngineHandshakeBenchmark.handshake        DIRECT                 TLS_AES_128_GCM_SHA256        OPENSSL  avgt   30  1298.154 ± 25.984  us/op
+
+Benchmark result is saved to /out/jmh.json
+-- verdict
+   results   : 4
+   tcnative  : OpenSSL 3.5.7 9 Jun 2026
+   written   : /home/fred/tls-matrix/insight/amazoncorretto-21-alpine__openssl__insight.jsonl
+tls-matrix: PASS on amazoncorretto:21-alpine / openssl
+############ insight boringssl-static patched on eclipse-temurin:21-jdk
+SslEngineHandshakeBenchmark.handshake        DIRECT                 TLS_AES_128_GCM_SHA256        OPENSSL  avgt   30  1346.328 ±  11.070  us/op
+
+Benchmark result is saved to /out/jmh.json
+-- verdict
+   results   : 4
+   tcnative  : BoringSSL
+   written   : /home/fred/tls-matrix/insight-bssl/eclipse-temurin-21-jdk__boringssl__insight.jsonl
+tls-matrix: PASS on eclipse-temurin:21-jdk / boringssl
+############ insight boringssl-static patched on eclipse-temurin:21-jdk-alpine
+SslEngineHandshakeBenchmark.handshake        DIRECT                 TLS_AES_128_GCM_SHA256        OPENSSL  avgt   30  1352.852 ± 17.574  us/op
+
+Benchmark result is saved to /out/jmh.json
+-- verdict
+   results   : 4
+   tcnative  : BoringSSL
+   written   : /home/fred/tls-matrix/insight-bssl/eclipse-temurin-21-jdk-alpine__boringssl__insight.jsonl
+tls-matrix: PASS on eclipse-temurin:21-jdk-alpine / boringssl
+############ insight boringssl-static patched on amazoncorretto:21-alpine
+SslEngineHandshakeBenchmark.handshake        DIRECT                 TLS_AES_128_GCM_SHA256        OPENSSL  avgt   30  1360.087 ± 11.998  us/op
+
+Benchmark result is saved to /out/jmh.json
+-- verdict
+   results   : 4
+   tcnative  : BoringSSL
+   written   : /home/fred/tls-matrix/insight-bssl/amazoncorretto-21-alpine__boringssl__insight.jsonl
+tls-matrix: PASS on amazoncorretto:21-alpine / boringssl
+INSIGHT_DONE

@@ -1,0 +1,158 @@
+time="2026-08-25T13:42:20+01:00" level=warning msg="The \"GPG_PRIVATE_KEY\" variable is not set. Defaulting to a blank string."
+time="2026-08-25T13:42:20+01:00" level=warning msg="The \"GPG_PASSPHRASE\" variable is not set. Defaulting to a blank string."
+time="2026-08-25T13:42:20+01:00" level=warning msg="The \"GPG_KEYNAME\" variable is not set. Defaulting to a blank string."
+time="2026-08-25T13:42:20+01:00" level=warning msg="/home/fred/tls-matrix/netty/docker/docker-compose.yaml: the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion"
+time="2026-08-25T13:42:20+01:00" level=warning msg="/home/fred/tls-matrix/netty/docker/docker-compose.centos-7.111.yaml: the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion"
+time="2026-08-25T13:42:20+01:00" level=warning msg="Found orphan containers (docker-cross-compile-aarch64-runtime-setup-1) for this project. If you removed or renamed this service in your compose file, you can run this command with the --remove-orphans flag to clean it up."
+ Container docker-runtime-setup-1 Starting 
+ Container docker-runtime-setup-1 Started 
+ Container docker-shell-run-2d8c8f0450eb Creating 
+ Container docker-shell-run-2d8c8f0450eb Created 
+[INFO] Scanning for projects...
+[INFO] ------------------------------------------------------------------------
+[INFO] Detecting the operating system and CPU architecture
+[INFO] ------------------------------------------------------------------------
+[INFO] os.detected.name: linux
+[INFO] os.detected.arch: x86_64
+[INFO] os.detected.bitness: 64
+[INFO] os.detected.version: 6.8
+[INFO] os.detected.version.major: 6
+[INFO] os.detected.version.minor: 8
+[INFO] os.detected.release: centos
+[INFO] os.detected.release.version: 7
+[INFO] os.detected.release.like.centos: true
+[INFO] os.detected.release.like.rhel: true
+[INFO] os.detected.release.like.fedora: true
+[INFO] os.detected.classifier: linux-x86_64-fedora
+[INFO] 
+[INFO] ---------------------< io.netty:netty-microbench >----------------------
+[INFO] Building Netty/Microbench 4.2.18.Final-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- enforcer:3.0.0:enforce (enforce-maven) @ netty-microbench ---
+[INFO] 
+[INFO] --- enforcer:3.0.0:enforce (enforce-tools) @ netty-microbench ---
+[INFO] 
+[INFO] --- checkstyle:3.1.0:check (check-style) @ netty-microbench ---
+[INFO] 
+[INFO] --- xml:1.0.1:check-format (check-style) @ netty-microbench ---
+[INFO] 
+[INFO] --- build-helper:1.10:parse-version (parse-version) @ netty-microbench ---
+[INFO] 
+[INFO] --- antrun:1.8:run (write-version-properties) @ netty-microbench ---
+[INFO] Executing tasks
+
+main:
+     [exec] Result: 128
+     [exec] Result: 128
+     [echo] Current commit: 0 on 1970-01-01 00:00:00 +0000
+   [delete] Deleting: /code/microbench/target/classes/META-INF/io.netty.versions.properties
+[propertyfile] Creating new property file: /code/microbench/target/classes/META-INF/io.netty.versions.properties
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- resources:3.0.1:resources (default-resources) @ netty-microbench ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] Copying 6 resources
+[INFO] 
+[INFO] --- compiler:3.14.0:compile (default-compile) @ netty-microbench ---
+[WARNING]  Parameter 'compilerVersion' (user property 'maven.compiler.compilerVersion') is deprecated: This parameter is no longer evaluated by the underlying compilers, instead the actual version of the javac binary is automatically retrieved.
+[WARNING]  Parameter 'optimize' (user property 'maven.compiler.optimize') is deprecated: This property is a no-op in javac.
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] --- forbiddenapis:2.2:check (check-forbidden-apis) @ netty-microbench ---
+[WARNING]  Parameter 'internalRuntimeForbidden' is deprecated: Use <a href="bundled-signatures.html">bundled signatures</a> {@code "jdk-non-portable"} or {@code "jdk-internal"} instead.
+[INFO] Skipping forbidden-apis checks.
+[INFO] 
+[INFO] --- bundle:5.1.8:manifest (generate-manifest) @ netty-microbench ---
+[INFO] Writing manifest: /code/microbench/target/classes/META-INF/MANIFEST.MF
+[INFO] 
+[INFO] --- resources:3.0.1:testResources (default-testResources) @ netty-microbench ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] skip non existing resourceDirectory /code/microbench/src/test/resources
+[INFO] Copying 3 resources
+[INFO] 
+[INFO] --- compiler:3.14.0:testCompile (default-testCompile) @ netty-microbench ---
+[WARNING]  Parameter 'compilerVersion' (user property 'maven.compiler.compilerVersion') is deprecated: This parameter is no longer evaluated by the underlying compilers, instead the actual version of the javac binary is automatically retrieved.
+[WARNING]  Parameter 'optimize' (user property 'maven.compiler.optimize') is deprecated: This property is a no-op in javac.
+[INFO] No sources to compile
+[INFO] 
+[INFO] --- forbiddenapis:2.2:testCheck (check-forbidden-test-apis) @ netty-microbench ---
+[WARNING]  Parameter 'internalRuntimeForbidden' is deprecated: Use <a href="bundled-signatures.html">bundled signatures</a> {@code "jdk-non-portable"} or {@code "jdk-internal"} instead.
+[INFO] Skipping forbidden-apis checks.
+[INFO] 
+[INFO] --- surefire:3.5.6:test (default-test) @ netty-microbench ---
+[INFO] Tests are skipped.
+[INFO] 
+[INFO] --- source:3.2.0:jar-no-fork (attach-sources) @ netty-microbench ---
+[INFO] 
+[INFO] --- source:3.2.0:test-jar-no-fork (attach-test-sources) @ netty-microbench ---
+[INFO] No sources in project. Archive not created.
+[INFO] 
+[INFO] --- jar:3.0.2:jar (default-jar) @ netty-microbench ---
+[INFO] Building jar: /code/microbench/target/netty-microbench-4.2.18.Final-SNAPSHOT.jar
+[INFO] 
+[INFO] --- shade:3.2.1:shade (default) @ netty-microbench ---
+[INFO] Including io.netty:netty-handler:jar:4.2.18.Final-SNAPSHOT in the shaded jar.
+[INFO] Including io.netty:netty-common:jar:4.2.18.Final-SNAPSHOT in the shaded jar.
+[INFO] Including io.netty:netty-resolver:jar:4.2.18.Final-SNAPSHOT in the shaded jar.
+[INFO] Including io.netty:netty-buffer:jar:4.2.18.Final-SNAPSHOT in the shaded jar.
+[INFO] Including io.netty:netty-transport:jar:4.2.18.Final-SNAPSHOT in the shaded jar.
+[INFO] Including io.netty:netty-transport-native-unix-common:jar:4.2.18.Final-SNAPSHOT in the shaded jar.
+[INFO] Including io.netty:netty-codec-base:jar:4.2.18.Final-SNAPSHOT in the shaded jar.
+[INFO] Including io.netty:netty-codec-compression:jar:4.2.18.Final-SNAPSHOT in the shaded jar.
+[INFO] Including io.netty:netty-codec-http:jar:4.2.18.Final-SNAPSHOT in the shaded jar.
+[INFO] Including io.netty:netty-codec-http2:jar:4.2.18.Final-SNAPSHOT in the shaded jar.
+[INFO] Including io.netty:netty-codec-redis:jar:4.2.18.Final-SNAPSHOT in the shaded jar.
+[INFO] Including io.netty:netty-codec-mqtt:jar:4.2.18.Final-SNAPSHOT in the shaded jar.
+[INFO] Including io.netty:netty-codec-stomp:jar:4.2.18.Final-SNAPSHOT in the shaded jar.
+[INFO] Including io.netty:netty-codec-protobuf:jar:4.2.18.Final-SNAPSHOT in the shaded jar.
+[INFO] Including com.google.protobuf:protobuf-java:jar:3.25.9 in the shaded jar.
+[INFO] Including com.google.protobuf.nano:protobuf-javanano:jar:3.0.0-alpha-7 in the shaded jar.
+[INFO] Including io.netty:netty-transport-native-epoll:jar:linux-x86_64:4.2.18.Final-SNAPSHOT in the shaded jar.
+[INFO] Including io.netty:netty-transport-classes-epoll:jar:4.2.18.Final-SNAPSHOT in the shaded jar.
+[INFO] Including io.netty:netty-transport-native-kqueue:jar:4.2.18.Final-SNAPSHOT in the shaded jar.
+[INFO] Including io.netty:netty-transport-classes-kqueue:jar:4.2.18.Final-SNAPSHOT in the shaded jar.
+[INFO] Including org.junit.jupiter:junit-jupiter-api:jar:5.14.3 in the shaded jar.
+[INFO] Including org.opentest4j:opentest4j:jar:1.3.0 in the shaded jar.
+[INFO] Including org.junit.platform:junit-platform-commons:jar:1.14.3 in the shaded jar.
+[INFO] Including org.apiguardian:apiguardian-api:jar:1.1.2 in the shaded jar.
+[INFO] Including org.junit.jupiter:junit-jupiter-engine:jar:5.14.3 in the shaded jar.
+[INFO] Including org.junit.platform:junit-platform-engine:jar:1.14.3 in the shaded jar.
+[INFO] Including org.openjdk.jmh:jmh-core:jar:1.36 in the shaded jar.
+[INFO] Including net.sf.jopt-simple:jopt-simple:jar:5.0.4 in the shaded jar.
+[INFO] Including org.apache.commons:commons-math3:jar:3.2 in the shaded jar.
+[INFO] Including org.agrona:Agrona:jar:0.5.1 in the shaded jar.
+[INFO] Including io.netty:netty-tcnative-boringssl-static:jar:linux-x86_64:2.0.82.Final-SNAPSHOT in the shaded jar.
+[INFO] Including io.netty:netty-tcnative-classes:jar:2.0.82.Final-SNAPSHOT in the shaded jar.
+[INFO] Including io.netty:netty-tcnative-boringssl-static:jar:linux-aarch_64:2.0.82.Final-SNAPSHOT in the shaded jar.
+[INFO] Including io.netty:netty-tcnative-boringssl-static:jar:osx-x86_64:2.0.82.Final-SNAPSHOT in the shaded jar.
+[INFO] Including io.netty:netty-tcnative-boringssl-static:jar:osx-aarch_64:2.0.82.Final-SNAPSHOT in the shaded jar.
+[INFO] Including io.netty:netty-tcnative-boringssl-static:jar:windows-x86_64:2.0.82.Final-SNAPSHOT in the shaded jar.
+[INFO] Including org.jctools:jctools-core:jar:4.0.7 in the shaded jar.
+[INFO] Including org.jfree:jfreechart:jar:1.5.6 in the shaded jar.
+[WARNING] Discovered module-info.class. Shading will break its strong encapsulation.
+[WARNING] Discovered module-info.class. Shading will break its strong encapsulation.
+[WARNING] Discovered module-info.class. Shading will break its strong encapsulation.
+[WARNING] Discovered module-info.class. Shading will break its strong encapsulation.
+[WARNING] Discovered module-info.class. Shading will break its strong encapsulation.
+[WARNING] Discovered module-info.class. Shading will break its strong encapsulation.
+[WARNING] Discovered module-info.class. Shading will break its strong encapsulation.
+[WARNING] netty-transport-native-unix-common-4.2.18.Final-SNAPSHOT.jar, netty-codec-protobuf-4.2.18.Final-SNAPSHOT.jar, netty-transport-classes-epoll-4.2.18.Final-SNAPSHOT.jar, netty-transport-native-kqueue-4.2.18.Final-SNAPSHOT.jar, netty-resolver-4.2.18.Final-SNAPSHOT.jar, netty-transport-classes-kqueue-4.2.18.Final-SNAPSHOT.jar, netty-handler-4.2.18.Final-SNAPSHOT.jar, netty-codec-compression-4.2.18.Final-SNAPSHOT.jar, netty-common-4.2.18.Final-SNAPSHOT.jar, netty-tcnative-boringssl-static-2.0.82.Final-SNAPSHOT-linux-aarch_64.jar, netty-tcnative-boringssl-static-2.0.82.Final-SNAPSHOT-windows-x86_64.jar, netty-codec-stomp-4.2.18.Final-SNAPSHOT.jar, netty-transport-4.2.18.Final-SNAPSHOT.jar, netty-tcnative-boringssl-static-2.0.82.Final-SNAPSHOT-osx-x86_64.jar, netty-codec-base-4.2.18.Final-SNAPSHOT.jar, netty-tcnative-boringssl-static-2.0.82.Final-SNAPSHOT-osx-aarch_64.jar, netty-codec-redis-4.2.18.Final-SNAPSHOT.jar, netty-codec-http-4.2.18.Final-SNAPSHOT.jar, netty-codec-mqtt-4.2.18.Final-SNAPSHOT.jar, netty-tcnative-classes-2.0.82.Final-SNAPSHOT.jar, netty-buffer-4.2.18.Final-SNAPSHOT.jar, netty-codec-http2-4.2.18.Final-SNAPSHOT.jar, netty-transport-native-epoll-4.2.18.Final-SNAPSHOT-linux-x86_64.jar, netty-tcnative-boringssl-static-2.0.82.Final-SNAPSHOT-linux-x86_64.jar define 1 overlapping classes: 
+[WARNING]   - META-INF.versions.11.module-info
+[WARNING] maven-shade-plugin has detected that some class files are
+[WARNING] present in two or more JARs. When this happens, only one
+[WARNING] single version of the class is copied to the uber jar.
+[WARNING] Usually this is not harmful and you can skip these warnings,
+[WARNING] otherwise try to manually exclude artifacts based on
+[WARNING] mvn dependency:tree -Ddetail=true and the above output.
+[WARNING] See http://maven.apache.org/plugins/maven-shade-plugin/
+[INFO] Replacing /code/microbench/target/microbenchmarks.jar with /code/microbench/target/netty-microbench-4.2.18.Final-SNAPSHOT-shaded.jar
+[INFO] 
+[INFO] --- jar:3.0.2:test-jar (default) @ netty-microbench ---
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  15.893 s
+[INFO] Finished at: 2026-08-25T12:42:37Z
+[INFO] ------------------------------------------------------------------------

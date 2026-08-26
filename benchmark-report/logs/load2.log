@@ -1,0 +1,7 @@
+host somaxconn=4096 ephemeral=32768	60999
+
+=== 10000 connections, 15s steady state, 1KB payload
+--- plaintext: the transport ceiling, no crypto in the way
+nio/none                   RAMP  connections=10000 established=10000 errors=0 wallMs=905 connPerSec=11045 STEADY durationS=15.0 requests=2258778 reqPerSec=150309 errors=0 p50us=55839 p99us=263423 p999us=570879 maxUs=660991 
+epoll/none                 RAMP  connections=10000 established=10000 errors=0 wallMs=606 connPerSec=16486 STEADY durationS=15.0 requests=2533608 reqPerSec=168789 errors=0 p50us=58015 p99us=196735 p999us=397823 maxUs=504319 
+io_uring/none              

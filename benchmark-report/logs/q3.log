@@ -1,0 +1,27 @@
+transport tls    reqPerSec cliU/req cliS/req gcMs  srvU/req srvS/req
+epoll     none   152227    8.40    15.34   56     5.90 15.58
+io_uring  none   114980    13.53   20.42   94     6.03 12.78
+epoll     openssl 92021     22.20   18.97   85     20.36 19.27
+io_uring  openssl 70442     24.26   23.27   87     22.54 23.45
+-- round 1 done
+epoll     none   141269    9.10    15.47   58     5.99 15.47
+io_uring  none   103940    14.70   19.92   99     8.22 14.02
+epoll     openssl 85043     22.07   19.01   95     18.33 17.25
+io_uring  openssl 82764     19.38   14.75   90     21.08 19.41
+-- round 2 done
+epoll     none   137804    8.60    15.34   59     5.97 15.58
+io_uring  none   106833    12.18   13.84   62     9.45 21.34
+epoll     openssl 82713     22.38   18.07   96     19.48 18.08
+io_uring  openssl 111042    18.46   15.63   73     18.54 14.17
+-- round 3 done
+epoll     none   168761    8.06    15.14   43     5.89 15.18
+io_uring  none   118879    13.18   20.13   78     6.28 12.53
+epoll     openssl 95360     22.35   19.01   77     20.93 19.13
+io_uring  openssl 115721    17.99   15.65   97     18.60 14.46
+-- round 4 done
+epoll     none   165173    8.00    15.23   44     5.83 15.49
+io_uring  none   117273    13.59   20.27   85     6.01 12.80
+epoll     openssl 77030     22.29   18.76   71     21.90 25.35
+io_uring  openssl 115189    18.51   14.79   87     18.92 15.20
+-- round 5 done
+Q3_DONE

@@ -1,63 +1,106 @@
 # Test catalogue
 
-Every test run in this work, what it was asking, and what came back. Companion to `FINDINGS.md`,
-which carries the conclusions. This file is the evidence trail.
+Every measurement run in this work, what it was configured with, what it returned, and how much you
+can trust it. Companion to `FINDINGS.md`, which draws conclusions; this file is the evidence.
 
 Confidence tags are the same as in `FINDINGS.md`:
 
-- **[SOLID]** multiple interleaved rounds, spreads recorded, raw output still on the test host
+- **[SOLID]** multiple interleaved rounds, spreads recorded, raw output still retrievable
 - **[SOLID, RECALLED]** measured carefully, but the numbers reached this document through a
-  conversation summary rather than raw output I can still read. Believed correct. Re-run before
-  publishing an exact digit.
+  conversation summary rather than raw output I can still read. Believed correct, re-run before
+  publishing an exact digit
 - **[SINGLE RUN]** one measurement, no spread
-- **[UNCERTAIN]** something specific is missing, named each time
+- **[UNCERTAIN]** something specific is missing, stated each time
 - **[WITHDRAWN]** claimed then disproved
 
-Host `thor` throughout: 4 physical cores / 8 logical (SMT), kernel 6.8.0-57-generic, 62 GB, Ubuntu.
-Guest `eclipse-temurin:21-jdk-alpine` unless stated. Raw logs live in `/home/fred/tls-matrix/*.log`
-on thor, named in each entry.
+## Where the raw data lives
+
+**On `thor`** (reachable as `thor.mf`), under `/home/fred/tls-matrix/`:
+
+| log | what | still present |
+|---|---|---|
+| `pc64.log` | pinning x cache-ceiling sweep, 64 KB | yes |
+| `pc256.log` | same at 256 KB | yes, **unread** |
+| `mech64.log` | SO_SNDBUF vs receive-buffer discriminator | yes |
+| `tlswarm.log` | ten consecutive TLS rounds per transport | yes |
+| `glibc.log` | glibc control at 64 KB | yes |
+| `stack64.log`, `stack256.log` | profile stack extracts | yes, **unread** |
+| `inversion.log`, `inversion2.log`, `q3.log` | early interleaved transport runs | yes, not re-read since compaction |
+| `load.log` .. `load4.log`, `reactor.log` | early load test runs | yes, not re-read |
+| `insight.log`, `groups.log`, `x86run.log`, `jar-*.log` | TLS matrix / JMH runs | yes, not re-read |
+| `kprof/`, `bigprof/`, `prof/` | async-profiler collapsed stacks | yes |
+
+**Important**: several of these logs were produced before a context compaction and I have not
+re-opened them. Numbers in this document tagged `[SOLID, RECALLED]` can very likely be recovered
+exactly by reading the corresponding log. That is the cheapest way to upgrade a `RECALLED` tag to
+`SOLID` before publishing.
+
+**In this branch**: `loadtest/README.md` (the running narrative), `loadtest/scripts/*.sh` (the sweeps
+the Fable agent committed), `.github/scripts/tls-matrix/` (the JMH matrix harness).
+
+**Scripts NOT committed**: the earlier ad-hoc sweeps I wrote into a scratch directory
+(`thor-kprof.sh`, `thor-iowq.sh`, `thor-bufring.sh`, `thor-cross.sh`, `thor-payload.sh`,
+`thor-bigbuf.sh`, `thor-pool.sh`, `thor-equal.sh`, `thor-big-prof.sh`). Copies exist on thor under
+`/home/fred/tls-matrix/`. **These should be committed** if the work is to be reproducible in ten
+years; a scratch directory tied to a job id is not durable.
 
 ---
 
-## Part A: TLS handshake matrix (JMH microbench)
+# Part A: TLS handshake matrix (JMH, netty microbench)
 
-Ran netty's own `microbench` shaded jar across images, architectures and tcnative flavours. All of
-Part A is **[SOLID, RECALLED]**: measured on an idle host with error bars, but the raw JMH JSON is on
-thor and was not re-read while writing this.
+All pre-compaction. Raw JMH JSON should still exist on thor.
 
-**[UNCERTAIN] applies to every score in Part A: the unit is not recorded.** These are JMH
-`Mode.AverageTime` handshake benchmarks so lower is better and it is time per operation, but whether
-nanoseconds or microseconds is not something I can confirm without re-running one cell. Ratios are
-safe; absolute values need the unit re-established before publication.
+## A1. Baseline: does netty's shaded microbench jar run at all on Alpine
 
-### A1. Does the released tcnative load on Alpine at all?
+**[SOLID, RECALLED]** Result: **no**, not until fixed. The SSL benchmarks could not initialise
+because key material was resolved with `getResource().getFile()`, which fails inside a jar. Four
+distinct upstream microbench bugs were found and fixed on this branch:
 
-Levels `library-load`, `init`, `handshake`, both architectures natively.
+1. resource loading via `getFile()`
+2. SSL contexts built eagerly for every provider, so JDK rows could not run where tcnative was absent
+3. `AbstractSslEngineBenchmark.configureEngine()` hardcoded `PROTOCOL_TLS_V1_2`, so TLS 1.3 was never
+   benchmarked on any provider
+4. handshake driver needed to be status-driven, with per-invocation buffer clearing
 
-| arch | flavour | result |
+**[UNCERTAIN]** Exact file/line references are not in front of me; they are in the branch's commit
+history for `microbench/src/main/java/io/netty/microbench/handler/ssl/`.
+
+## A2. tcnative 2.0.81 on Alpine, both architectures
+
+**[SOLID, RECALLED]** Configuration: released `netty-tcnative` 2.0.81, `boringssl-static`, Alpine,
+x86_64 and aarch64 native (not emulated).
+
+- x86_64: `library-load` failure, catchable `UnsatisfiedLinkError`, `ld-linux-x86-64.so.2` unresolved
+  in `DT_NEEDED`
+- aarch64: `jvm-crash`, uncatchable SIGSEGV in `JVM_LoadLibrary` via `init_have_lse_atomics` calling
+  `__getauxval` from `.init_array` during `dlopen`
+
+## A3. openssl-dynamic as an Alpine workaround
+
+**[SOLID, RECALLED]** Loads on Alpine x86_64 on released 2.0.81, reports OpenSSL 3.5.7, requires
+`apr` and `openssl` in the image. No `linux-aarch_64` classifier published, so x86_64 only.
+
+## A4. libc effect on handshake cost, by tcnative flavour
+
+**[SOLID]** Insight mode, x86_64, idle host. Upgraded from RECALLED: raw records recovered and
+committed under `benchmark-report/jmh/`.
+
+| flavour / provider | glibc | musl |
 |---|---|---|
-| x86_64 | boringssl-static 2.0.81 | **fails at library-load**, catchable `UnsatisfiedLinkError`, `ld-linux-x86-64.so.2` unresolved in `DT_NEEDED` |
-| aarch64 | boringssl-static 2.0.81 | **JVM crash**, SIGSEGV in `JVM_LoadLibrary`, uncatchable. `init_have_lse_atomics` calls `__getauxval` from an `.init_array` constructor during `dlopen` |
-| x86_64 | openssl-dynamic 2.0.81 | **loads**, reports OpenSSL 3.5.7, once `apr` and `openssl` are in the image |
-| aarch64 | openssl-dynamic | **not testable**, no `linux-aarch_64` classifier published |
-| both | patched build | loads and handshakes |
+| openssl-dynamic, OPENSSL | 990.4 +/- 19.8 | 1111.3 +/- 28.2 |
+| boringssl-static, OPENSSL | 804.2 +/- 16.9 | 796.7 +/- 13.9 |
+| JDK provider | control, no libc effect | control, no libc effect |
 
-### A2. libc effect by tcnative flavour
+TLS 1.3 rows showed +17-22% for openssl-dynamic on musl.
 
-Insight mode, x86_64, idle host.
+**Unit verified: `us/op`.** Raw JMH records recovered from thor and committed under
+`benchmark-report/jmh/`. All four values above match to three decimals, and the JDK control rows
+confirm no libc effect (1935.49 glibc against 1925.21 musl).
 
-| flavour / provider | glibc | musl | delta |
-|---|---|---|---|
-| openssl-dynamic, OPENSSL | 990.4 +/- 19.8 | 1111.3 +/- 28.2 | +12% (TLS 1.3: +17 to 22%) |
-| boringssl-static, OPENSSL | 804.2 +/- 16.9 | 796.7 +/- 13.9 | none |
-| JDK provider (control) | no libc effect | no libc effect | none |
+## A5. Key exchange group sweep
 
-Conclusion: the musl penalty belongs to the dynamic flavour, not to musl. Mechanism (runtime libssl
-resolution vs compiled-in crypto) is **inferred, never instrumented**.
-
-### A3. Key exchange group sweep
-
-Everything fixed, only the group varied.
+**[SOLID, RECALLED]** Everything fixed, only `-Dnetty.bench.tls.groups` varied, via
+`OpenSslContextOption.GROUPS`.
 
 | group | score |
 |---|---|
@@ -66,311 +109,363 @@ Everything fixed, only the group varied.
 | X25519 | 1043.7 +/- 11.7 |
 | P-256 | 1000.8 +/- 9.0 |
 
-The default equals the post-quantum hybrid. Driven through `-Dnetty.bench.tls.groups` into
-`OpenSslContextOption.GROUPS`.
+Verified against `benchmark-report/logs/groups.log`, which carries these to three decimals.
 
-### A4. TLS 1.2 vs 1.3, with and without the group pinned
+## A6. TLS 1.2 vs TLS 1.3, group controlled and uncontrolled
+
+**[SOLID, RECALLED]**
 
 | comparison | TLS 1.2 | TLS 1.3 | gap |
 |---|---|---|---|
-| each side's own default group | 804.2 +/- 16.9 | 1346.3 +/- 11.1 | +67% |
-| X25519 pinned both sides | 769.8 +/- 11.8 | 1004.0 +/- 12.2 | +30% |
+| own defaults | 804.2 +/- 16.9 | 1346.3 +/- 11.1 | +67% |
+| X25519 pinned both | 769.8 +/- 11.8 | 1004.0 +/- 12.2 | +30% |
 
-### A5. What a real cloud endpoint negotiates
+## A7. What a real cloud endpoint negotiates
 
-`s3.eu-west-1.amazonaws.com`: TLSv1.3 / TLS_AES_128_GCM_SHA256 / **X25519MLKEM768** /
-rsa_pss_rsae_sha256. Confirms A3's default is what production actually uses.
+**[SOLID, RECALLED]** `s3.eu-west-1.amazonaws.com`: TLSv1.3, TLS_AES_128_GCM_SHA256,
+**X25519MLKEM768**, rsa_pss_rsae_sha256.
 
-### A6. Upstream microbench bugs found and fixed on this branch
+**[UNCERTAIN]** Date of the probe is roughly 2026-08-25. Re-run before publishing, since this is
+exactly the kind of fact that changes.
 
-Four, all **[SOLID, RECALLED]**, all of which made benchmarks silently unrunnable rather than error:
+## A8. Cross-checks that were run as negative controls
 
-1. Key material loaded via `getResource().getFile()`, which cannot work inside a jar. No SSL
-   benchmark in netty's shaded microbench jar could run at all.
-2. SSL contexts built eagerly for every provider, so JDK-provider rows failed wherever tcnative was
-   absent.
-3. `configureEngine()` hardcoded `PROTOCOL_TLS_V1_2`; TLS 1.3 was not benchmarked on any provider.
-4. Handshake driver needed to be status-driven and buffers cleared per invocation, not just a
-   parameter added.
+**[SOLID, RECALLED]** Forcing `OPENSSL` on an image with no tcnative must fail the cell rather than
+report a number; `SSL.versionString()` cross-checked so a cell labelled BoringSSL really is
+BoringSSL. Both behaved correctly.
+
+## A9. Never executed
+
+**[UNCERTAIN]** `.github/workflows/ci-tls-matrix.yml` is committed and **has never run**. It needs a
+fork with Actions enabled. Payload-size and certificate-type axes (phase 6 of the plan) were never
+started.
 
 ---
 
-## Part B: load test, transport comparisons
+# Part B: QUIC musl fix
 
-Standalone `loadtest/` project. Plain TCP echo, length-prefixed frames, `TCP_NODELAY`,
-`PooledByteBufAllocator`, `SO_BACKLOG=8192`, `nofile=65536`, `seccomp=unconfined`.
+**[SOLID, RECALLED]** Branch `quic-musl-compat` at `50d78dbc88`, 11 files, +1245 lines. Ports the
+tcnative #997 approach to `codec-native-quic`:
 
-**Pinning note that affects B1 through B7:** those runs used cpusets `0-3` (server) and `4-7`
-(client), believed disjoint, actually SMT sibling pairs. Quantified in B9. The artifact worked
-against io_uring by about seven percentage points and changed no ordering.
+- `codec-native-quic/src/main/c/musl_compat.c`, 21 weak fallbacks, guarded `#ifdef __linux__` then
+  `#ifdef __GLIBC__`, stat shims implemented via raw syscalls (`SYS_newfstatat`) because glibc 2.17's
+  `libc_nonshared.a` stubs call `__xstat`, which musl does not have
+- `codec-native-quic/pom.xml`: static libstdc++/libgcc link flags, plus a patchelf antrun step bound
+  to `process-test-resources` with a fileset and a `resourcecount count="1"` guard
+- `.github/scripts/musl-verify/QuicMuslCheck.java`, 309 lines, QUIC client and server in one JVM,
+  levels `load` / `init` / `handshake`
 
-### B1. First inversion run [WITHDRAWN in part]
+Verified from source on both architectures. **Deliberately unpushed, PR never opened.**
 
-**[SINGLE RUN]** epoll plaintext 166,219 vs io_uring 125,895; epoll TLS 95,382 vs io_uring 104,256.
-One sample each on a busy box. Superseded by B2.
+Two build bugs found and fixed on the way, both worth an article beat:
 
-### B2. Interleaved inversion, 5 rounds [SOLID, RECALLED]
+- patchelf was initially bound to `process-classes`, but hawtjni 1.18 binds `build` to
+  `generate-test-resources`, so the `.so` did not exist yet and the step silently patched nothing
+- the hardcoded `.so` path was wrong because hawtjni nests under `META-INF/native/linux64/`
 
-10k connections, 10 s, 1 KB. `inversion.log`, `inversion2.log`.
+---
 
-| cell | round spread |
-|---|---|
-| epoll plaintext | 161,845 - 166,798 |
-| io_uring plaintext | 118,002 - 121,729 |
-| epoll TLS | 67,460 - 95,527 (42%) |
-| io_uring TLS | 83,451 - 117,973 (41%) |
+# Part C: Load test harness
 
-Plaintext ordering robust. TLS ordering **not established** at this point.
+Standalone Maven project at `loadtest/`, **not** a netty module. `LoadTest.java`, `Transports.java`,
+`Tls.java`, `Args.java`, `Counters.java`.
 
-### B3. Ring size sweep [SOLID, RECALLED] — negative
+Design decisions that matter for reproducibility:
 
-4096 / 16384 / 32768 gave 127,590 / 127,014 / 125,817. No effect.
+- **Aborts, never falls back.** Netty defaults to NIO when a native transport is missing; this
+  harness throws instead.
+- **Two phases reported separately**: ramp (connection establishment and handshakes) and steady.
+- **Closed loop by default**, one request in flight per connection, and the output line says so
+  (`mode=closed-loop:latency-is-queue-depth`) because p50 in that mode is queue depth.
+- **Open loop via `--rate`**, measuring from *due* time to avoid coordinated omission.
+- **Counters from procfs and JMX**: `/proc/self/stat` fields 14/15 for user and system time, context
+  switches summed over `/proc/self/task/*` (the process file reports the main thread only, which in
+  netty does nothing after bind), `GarbageCollectorMXBean` for pauses.
+- **Pool metrics**: `usedDirectMemory` and live chunk count on the server line, added late.
+- Options added over time: `--ring-size`, `--buffer-ring`, `--buffer-ring-size`, `--zc-threshold`,
+  `--sndbuf`, `--rcvbuf-max`.
 
-**[WITHDRAWN]** An earlier single run showed 578 req/s against epoll's 168,789 alongside a
-"CompletionQueue overflow detected" warning, and I claimed a 292x ring effect. The real cause was two
-of my own runs colliding on the same port and cores. The warning was a symptom of contention.
+Standard container flags: `--network=host`, `--security-opt seccomp=unconfined` (docker's default
+seccomp blocks `io_uring_setup`), `--ulimit nofile=65536:65536`, `--ulimit memlock=-1` for zero-copy
+cells, `SO_BACKLOG=8192`.
 
-### B4. Instrumented run: GC and CPU split, 5 interleaved rounds [SOLID, RECALLED]
+---
 
-`q3.log`. Added utime/stime, GC and context-switch counters.
+# Part D: Load test experiments, chronological
 
-- **GC hypothesis falsified.** `gcMs` between 71 and 99 while throughput swung 70k to 116k. The
-  slowest TLS round had the lowest GC time.
-- Medians, us per request: epoll plaintext 152,227 req/s, client 8.40 user / 15.34 sys, server 5.90 /
-  15.49. io_uring plaintext 114,980 req/s, client 13.53 / 20.13, server 6.28 / **12.80**.
-- The 12.80 server figure led to a claim later **[WITHDRAWN]** in B6.
-- io_uring TLS rounds trended upward across fresh JVMs (70,442 / 82,764 / 111,042 / 115,721 /
-  115,189), blocking any TLS claim. Later shown not to reproduce, see B12.
+## D1. First 10k-connection runs
 
-### B5. Open-loop mode, coordinated omission [SOLID, RECALLED]
+**[SINGLE RUN]** epoll ahead on plaintext (166,219 vs 125,895), io_uring ahead with TLS (104,256 vs
+95,382). One sample each, on a box whose load average looked high. Everything after this was
+interleaved because of this run.
 
-Closed loop reported p50 57 ms, which was Little's Law and not latency. Added `--rate`, measuring
-from due time. Verified: 81,987 req/s at p50 1831 us closed-loop against 19,995 req/s at p50 60 us
-open-loop. Output now self-labels `closed-loop:latency-is-queue-depth`.
+## D2. Ring size sweep
 
-**[UNCERTAIN]** An open-loop anomaly at small payloads was never explained: p50 around 100 us against
-p99 around 1 s with the target rate met.
+**[SOLID, RECALLED]** 4096 / 16384 / 32768 at 10k connections: **127,590 / 127,014 / 125,817**. No
+difference.
 
-### B6. Transport crossing, 2x2, 5 interleaved rounds [SOLID]
+**[WITHDRAWN]** This sweep retracted a claimed 292x effect. The original observation (578 req/s
+against epoll's 168,789, with a "CompletionQueue overflow detected" warning) was caused by two of my
+own runs colliding on the same port and cores. Correction committed at `45a06b50bf`.
 
-10k connections, 1 KB. The decisive attribution test, since client and server are separate processes.
+## D3. Interleaved transport comparison, 5 rounds
 
-| server | client | round spread | median | server sys us/req |
-|---|---|---|---|---|
-| epoll | epoll | 124,125 - 166,896 | **139,356** | 15.6 |
-| io_uring | epoll | 106,844 - 125,922 | 115,252 | **21.5** |
-| epoll | io_uring | 103,556 - 128,112 | 112,656 | 13.8 |
-| io_uring | io_uring | 108,065 - 120,161 | 114,885 | ~20 |
+**[SOLID, RECALLED]** 10k connections, 10 s, 1 KB.
 
-epoll/epoll won all five rounds. **Withdrew two claims**: that the deficit was client-side, and that
-io_uring saved 17% of server kernel time. Held against an epoll client the io_uring server uses
-*more* kernel time. Penalties are symmetric and do not add.
+| cell | round spread | verdict |
+|---|---|---|
+| epoll plaintext | 161,845 - 166,798 | epoll ~39% faster, robust |
+| io_uring plaintext | 118,002 - 121,729 | |
+| epoll TLS | 67,460 - 95,527 (42%) | not established at the time |
+| io_uring TLS | 83,451 - 117,973 (41%) | |
 
-### B7. Buffer rings and multishot recv
+## D4. Q3 instrumented run: where does the CPU go
 
-**At 1 KB, 5 interleaved rounds [SOLID] — no effect.**
+**[SOLID, RECALLED]** Medians per request, microseconds:
 
-| cell | spread | median |
+| | req/s | client utime | client stime | server utime | server stime |
+|---|---|---|---|---|---|
+| epoll plaintext | 152,227 | 8.40 | 15.34 | 5.90 | 15.49 |
+| io_uring plaintext | 114,980 | 13.53 | 20.13 | 6.28 | 12.80 |
+
+This produced two conclusions that were **later withdrawn** (see D9): that the deficit was
+client-side, and that io_uring saved 17% of server kernel time.
+
+## D5. GC hypothesis
+
+**[SOLID, RECALLED]** **Falsified.** `gcMs` between 71 and 99 across TLS rounds while throughput swung
+70k to 116k. epoll's slowest TLS round (77,030) had its lowest GC (71 ms); its fastest (95,360) had
+77 ms. No correlation, and the correlation runs the wrong way if anything.
+
+Also noted: the asymmetry that motivated the hypothesis (plaintext 3% spread vs TLS 42%) did not
+reproduce. In that run plaintext spanned 22% and TLS 23%.
+
+## D6. async-profiler `ctimer`, plaintext client
+
+**[SOLID]** 10k connections, 20 s, 1 KB.
+
+- epoll: 80,246 samples, **65.6% self-time in `/lib/ld-musl-x86_64.so.1`** (libc syscall stubs)
+- io_uring: 33,398 samples, **no dominant frame**. 15.5% `syscall`, then `handleFastPath` 3.5%,
+  `UnsafeRefArrayAccess.soRefElement` 2.3%, `scheduleWriteMultiple` 2.2%, `writeComplete0` 2.2%
+- Context switches: io_uring 1,694 voluntary vs epoll 4,293. Batching works, and CPU per request is
+  still higher.
+
+**[SOLID] Caveat found by cross-checking**: async-profiler under-sampled io_uring 2.4x (33.4 s of
+samples for 79.7 s of CPU; epoll matched at 80.2 vs 78.5). The two profiles are not comparable as
+percentages.
+
+## D7. Buffer rings and multishot recv at 1 KB
+
+**[SOLID]** 5 interleaved rounds, 10k connections, 10 s.
+
+| cell | rounds | median |
 |---|---|---|
 | epoll | 137,726 - 166,466 | 159,512 |
-| io_uring, no ring | 101,105 - 119,759 | 117,079 |
+| io_uring, no buffer ring | 101,105 - 119,759 | 117,079 |
 | io_uring + ring 1024 | 110,861 - 120,091 | 116,356 |
 | io_uring + ring 4096 | 107,439 - 124,705 | 115,023 |
 
-**At 64 KB, 3 interleaved rounds [SOLID] — real but tiny +5%.**
+No effect. Discovered here: netty arms `IORING_RECV_MULTISHOT` only inside
+`scheduleReadProviderBuffer()`, reached only with a buffer ring configured, and none is configured by
+default. Also found `IoUringBufferRingConfig.builder()` throws unless `batchSize()` is set.
 
-| cell | spread | median |
+## D8. io_wq thread census
+
+**[SOLID]** Thread census by name during steady state, both transports, both sides. **No `iou-wrk-*`
+threads at all.** Operations complete inline; nothing is punted to io_wq. This falsified the leading
+explanation for the profiler shortfall in D6.
+
+**[UNCERTAIN]** The census script's CPU columns were mislabelled by a one-field offset in
+`/proc/<tid>/stat` parsing. The thread *names*, which is what the test was for, are correct. The CPU
+figures from that script were never used.
+
+## D9. Cross-transport 2x2
+
+**[SOLID]** 5 interleaved rounds, 10k connections, 10 s, 1 KB.
+
+| server | client | round spread | median | server stime/req |
+|---|---|---|---|---|
+| epoll | epoll | 124,125 - 166,896 | 139,356 | 15.6 us |
+| io_uring | epoll | 106,844 - 125,922 | 115,252 | 21.5 us |
+| epoll | io_uring | 103,556 - 128,112 | 112,656 | 13.8 us |
+| io_uring | io_uring | 108,065 - 120,161 | 114,885 | ~20 us |
+
+epoll/epoll leads all five rounds individually. **Withdrew two claims from D4.** Also established
+that the two penalties do not add, which is the signature of a closed-loop pipeline where the slowest
+stage sets the rate.
+
+**[UNCERTAIN]** epoll/epoll drifted upward across rounds (131k, 124k, 139k, 167k, 166k), so the
+machine was not steady for the whole run.
+
+## D10. Payload sweep and zero-copy send
+
+**[SINGLE RUN per cell]** Connections scaled down as payload rose. **Old (SMT-sibling) pinning.**
+
+| payload | conns | epoll | io_uring | io_uring + SEND_ZC |
+|---|---|---|---|---|
+| 1 KB | 10,000 | 137,671 | 119,917 | 70,156 |
+| 8 KB | 10,000 | 115,997 | 86,717 | 50,535 |
+| 64 KB | 2,000 | 38,914 | 18,137 | 18,374 |
+| 256 KB | 500 | 9,259 | 3,767 | 3,813 |
+
+The 64 KB row was later reproduced across many interleaved rounds. **The 8 KB and 256 KB rows were
+never re-run** and have no error bars.
+
+## D11. Buffer rings at 64 KB
+
+**[SOLID]** 3 interleaved rounds, 2000 connections.
+
+| cell | rounds | median |
 |---|---|---|
 | epoll | 40,493 - 42,234 | 40,999 |
 | io_uring, no ring | 18,682 - 18,754 | 18,702 |
 | io_uring + 512 x 64 KB | 19,421 - 19,787 | 19,680 |
 | io_uring + 2048 x 16 KB | 19,019 - 19,427 | 19,118 |
 
-**[UNCERTAIN] Now suspect.** Enabling a ring should delete the POLL_ADD round trip entirely, so +5%
-fits "the ring never engaged" better than "engaged and did not help". The two buffer sizes performing
-identically points the same way. Needs a runtime `IoUringBufferRing.isUsable()` assertion that aborts
-the cell. Also found here: `IoUringBufferRingConfig.builder()` throws unless `batchSize()` is called.
+A real, non-overlapping +5%, recovering about 4% of a 120% gap. **[UNCERTAIN]** Now suspect: enabling
+a ring should delete the POLL_ADD round trip entirely, so +5% is more consistent with the ring never
+engaging. Needs an `isUsable()` assertion that aborts.
 
-### B8. Payload sweep and zero-copy send [SINGLE RUN per cell]
+## D12. Kernel profiling at 1 KB, with capabilities
 
-Old pinning. Connections scaled down as payload rose.
+**[SOLID]** Technique: `--cap-add=PERFMON --cap-add=SYS_ADMIN --cap-add=SYSLOG` plus
+`seccomp=unconfined`, `event=cpu`. Kernel frames resolve by name with no host sysctl change.
 
-| payload | conns | epoll | io_uring | io_uring + SEND_ZC | io_uring % |
-|---|---|---|---|---|---|
-| 1 KB | 10,000 | 137,671 | 119,917 | 70,156 | 87% |
-| 8 KB | 10,000 | 115,997 | 86,717 | 50,535 | 75% |
-| 64 KB | 2,000 | 38,914 | 18,137 | 18,374 | 47% |
-| 256 KB | 500 | 9,259 | 3,767 | 3,813 | 41% |
+Frames unique to io_uring: `do_user_addr_fault` 2.31%, `refill_stock` 1.78%, `clear_page_erms` 1.48%,
+`page_counter_try_charge` 1.26%. `fget` 1.68% against epoll's `__fdget` 1.58%, which ruled out
+registered files.
 
-The 64 KB row was reproduced properly later (B7, B9, B10). **The 8 KB and 256 KB rows have no error
-bars and were never re-run under corrected pinning.** SEND_ZC harm below 64 KB is expected on kernel
-6.8, which predates 6.10 buffer coalescing.
+**[SOLID] Sample accounting**: epoll 65.8% of samples on kernel frames against 67.9% measured system
+time (matches); io_uring 18.8% against 66.5% (3.5x shortfall, cause unexplained).
 
-### B9. Pinning artifact and cache-ceiling remediation, 5 interleaved rounds [SOLID]
+## D13. Profiling at 256 KB, both sides
 
-`pc64.log`, `pc256.log`. 64 KB, 2000 connections. `-c` = `maxCachedBufferCapacity` raised to 256 KB.
+**[SINGLE RUN]** 500 connections, 20 s. Both transports CPU-saturated at ~78 core-seconds, so a clean
+same-CPU comparison: epoll 8,367 req/s at 468 us/req, io_uring 3,877 at 968 us/req.
 
-| cell | median | server pool range |
+Per-request sample ratios: `jlong_disjoint_arraycopy` 1.77x, `Copy::fill_to_memory_atomic` 2.32x,
+kernel `rep_movs_alternative` 0.85x. io_uring does less kernel copying and more userspace zeroing.
+
+Stack walk found two distinct sources:
+
+- client-side fill is **the load generator's own payload construction** (`RequestLoop.sendClosed ->
+  writeZero`), identical work in both, not netty
+- server-side is netty: `PoolArena$DirectArena.newChunk -> ByteBuffer.allocateDirect`, **7 samples on
+  epoll, 1,201 on io_uring**
+
+**[UNCERTAIN]** `stack64.log` and `stack256.log` on thor contain further stack extracts that were
+never read.
+
+## D14. Pooled memory measurement
+
+**[SINGLE RUN per cell]** 256 KB, 500 connections, `usedDirectMemory` and live chunks every 2 s.
+
+| server | req/s | pooled memory across the run |
 |---|---|---|
-| epoll, old (SMT) pinning | ~42,008 | 16-16 MB |
-| epoll, correct pinning | 34,959 | 16-16 MB |
-| epoll, correct + cache | **43,745** | 16-16 MB |
-| io_uring, old pinning | ~18,373 | 20-196 MB |
-| io_uring, correct pinning | 17,794 | 16-212 MB |
-| io_uring, correct + cache | 20,442 | 96-212 MB |
+| epoll | 9,139 | 32 MB / 8 chunks, identical every sample |
+| io_uring | 3,966 | 72, 76, 140, 44, 56, 40, 68, 80, 60, 80 MB (8-36 chunks) |
+| io_uring + buffer ring | 4,176 | 76, 44, 44, 44, 52, 124, 128, 56, 40, 68 MB |
 
-Ratio moves 43.7% (old) to 50.9% (correct). **The cache ceiling is not the fix**: it helps epoll
-(+25%) more than io_uring (+15%).
+## D15. Equal-rate open loop, the decisive control
 
-### B10. Mechanism discriminator, 5 interleaved rounds [SOLID] — the decisive test
+**[SINGLE RUN per cell, but the cleanest comparison in the whole branch]** Both driven at a fixed
+2,000 req/s, both met target exactly.
 
-`mech64.log`. 64 KB, 2000 connections, correct pinning. Each hypothesis predicted a different lever.
-
-| cell | median |
-|---|---|
-| epoll, default | 40,630 |
-| io_uring, default | 17,257 |
-| io_uring, `SO_SNDBUF=64K` | 17,089 |
-| io_uring, `SO_SNDBUF=1M` | 17,502 |
-| io_uring, receive buffer 16K | **13,586** |
-| io_uring, receive buffer 512K | **23,458** |
-
-Send buffer: nothing, across 16x. **Write-spin-loop hypothesis rejected.** Receive buffer: 73% span,
-monotonic, tracking reads per message (roughly 5 / 2 / 1 for a 64 KB payload). Recovers about a third
-of the gap.
-
-### B11. glibc control, 5 rounds [SOLID]
-
-`glibc.log`. Same 64 KB cell on `eclipse-temurin:21-jdk`: epoll 39,149 - 42,217, io_uring 19,155 -
-19,893. Same ~48% ratio as Alpine. **musl is not a factor.**
-
-### B12. TLS warm-up and ordering, 10 consecutive rounds each [SOLID]
-
-`tlswarm.log`. Fresh JVM per round, with `freqKHz`, `tempMilliC` and `load1m` logged per round.
-
-| | rounds | median |
-|---|---|---|
-| io_uring TLS | 84,074 - 115,974 | **107,719** |
-| epoll TLS | 72,755 - 97,351 | 94,681 |
-
-io_uring ~14% faster, 9 of 10 rounds above epoll's median. Frequency steady at 3.2 GHz, temperature
-71-76 C. **The B4 warm-up trend does not reproduce**: round 1 is the highest of the ten.
-
-**[UNCERTAIN]** Consecutive per transport, not interleaved, because the question was about a
-within-transport trend. Repeat interleaved before publishing.
-
-### B13. Equal-rate open loop, 256 KB [SOLID] — cause vs effect
-
-Both driven at a fixed 2,000 req/s, below either's capacity. Both met target.
-
-| server | user us/req | sys us/req | total | pooled memory |
+| server | user us/req | system us/req | total | pooled |
 |---|---|---|---|---|
 | epoll | 76.2 | 127.5 | **203.7** | 16 MB / 4 chunks, flat |
 | io_uring | 86.0 | 117.1 | **203.1** | 32 MB / 8 chunks, flat |
 
-**io_uring is not intrinsically more expensive per operation**, 0.3% apart. What survives is a stable
-2x memory footprint. This is the cell the memory conclusion rests on, and it is also the cell least
-affected by the pinning error since neither side saturates.
+**io_uring is not intrinsically more expensive per operation** at equal load, and the chunk thrashing
+disappears. What survives is a stable 2x memory footprint.
 
-### B14. Pooled memory under saturation, 256 KB [SOLID]
+**Worth repeating with rounds and spreads.** This single pair carries a lot of the argument.
 
-| server | req/s | pooled direct memory, sampled every 2 s |
+## D16. Pinning and cache-ceiling sweep
+
+**[SOLID]** 5 rounds, 64 KB, 2000 connections. `-new` is corrected whole-core pinning (server
+0,1,4,5; client 2,3,6,7), `-old` is the SMT-sibling pinning, `-c` raises
+`io.netty.allocator.maxCachedBufferCapacity` to 256 KB.
+
+| cell | median | server pool range |
 |---|---|---|
-| epoll | 9,139 | 32 MB / 8 chunks in every sample |
-| io_uring | 3,966 | 72, 76, **140**, 44, 56, 40, 68, 80, 60, 80 MB (8 to 36 chunks) |
-| io_uring + buffer ring | 4,176 | 76, 44, 44, 44, 52, **124, 128**, 56, 40, 68 MB |
+| epoll old | ~42,008 | 16-16 MB |
+| epoll new | 34,959 | 16-16 MB |
+| epoll new + cache | 43,745 | 16-16 MB |
+| io_uring old | ~18,373 | 20-196 MB |
+| io_uring new | 17,794 | 16-212 MB |
+| io_uring new + cache | 20,442 | 96-212 MB |
 
-Reduced by B10 to a symptom rather than the cause.
+The SMT artifact was working against io_uring (ratio 43.7% old, 50.9% corrected). The cache ceiling
+helps epoll more than io_uring and is **not** the fix.
+
+**[UNCERTAIN]** `pc256.log`, the same sweep at 256 KB, exists on thor and **was never read**.
+
+## D17. Mechanism discriminator
+
+**[SOLID]** 5 interleaved rounds, 64 KB, 2000 connections, corrected pinning. **The single most
+important run in this work.**
+
+| cell | median |
+|---|---|
+| epoll default | 40,630 |
+| io_uring default | 17,257 |
+| io_uring `SO_SNDBUF=64K` | 17,089 |
+| io_uring `SO_SNDBUF=1M` | 17,502 |
+| io_uring `--rcvbuf-max=16K` | 13,586 |
+| io_uring `--rcvbuf-max=512K` | 23,458 |
+
+Send buffer moves nothing (rejects the write-spin-loop hypothesis). Receive buffer moves throughput
+73% monotonically, tracking reads per message.
+
+## D18. glibc control
+
+**[SOLID]** 5 rounds, 64 KB, `eclipse-temurin:21-jdk` instead of Alpine: epoll 39,149 - 42,217,
+io_uring 19,155 - 19,893. Same ~48% ratio. **musl is not a factor.**
+
+## D19. TLS warm-up and TLS ordering
+
+**[SOLID for the trend question, UNCERTAIN for the ordering]** Ten consecutive fresh-JVM rounds per
+transport, 10k connections, 1 KB, with per-round CPU frequency, package temperature and load average.
+
+| | rounds | median |
+|---|---|---|
+| io_uring TLS | 84,074 - 115,974 | 107,719 |
+| epoll TLS | 72,755 - 97,351 | 94,681 |
+
+**No warm-up trend**: round 1 is the highest io_uring round of the ten. The earlier five-round climb
+(70,442 to 115,189) does not reproduce and was machine state.
+
+io_uring ~14% faster, 9 of 10 rounds above epoll's median, frequency stable at 3.2 GHz and temperature
+71-76 C. **[UNCERTAIN]** Consecutive per transport, not interleaved, because the question asked was
+about a within-transport trend. Repeat interleaved before publishing the ordering.
 
 ---
 
-## Part C: profiling
+# Open items never completed
 
-### C1. ctimer profile at 1 KB, client only [SOLID]
+- **[UNCERTAIN] Open-loop p99 anomaly at small payloads**: p50 around 100 us against p99 around 1 s
+  with the target rate met. Never explained.
+- **[UNCERTAIN] The async-profiler shortfall on io_uring**: cause unknown, io_wq falsified.
+- `pc256.log`, `stack64.log`, `stack256.log` on thor: produced, never read.
+- 8 KB and 256 KB payload rows: never re-run with rounds or corrected pinning.
+- `ci-tls-matrix.yml`: committed, never executed.
+- Microbench payload-size and certificate-type axes: never started.
+- The Medium draft written earlier in this work
+  (`~/.claudem/jobs/6c46f506/tmp/medium-draft.md`, roughly 1400 words): **[UNCERTAIN]** that path is a
+  job scratch directory and may no longer exist. It should be treated as lost and rewritten from
+  `FINDINGS.md`.
+- Nothing is pushed anywhere. The netty checkout has only `origin` pointing at upstream netty/netty,
+  so there is no fork remote to push to.
 
-epoll: 80,246 samples, 65.6% self time in `ld-musl-x86_64.so.1` (libc syscall stubs). io_uring:
-33,398 samples, no dominant frame. Long tail: `syscall` 15.5%, `handleFastPath` 3.5%,
-`UnsafeRefArrayAccess.soRefElement` 2.3%, `scheduleWriteMultiple` 2.2%, `writeComplete0` 2.2%.
-Context switches: io_uring 1,694 vs epoll 4,293, so batching works while CPU per request is higher.
+# If you want these numbers to survive ten years
 
-### C2. Kernel profile at 1 KB [SOLID]
+The fragile parts, in order of fragility:
 
-Enabled by `--cap-add=PERFMON --cap-add=SYS_ADMIN --cap-add=SYSLOG` plus `seccomp=unconfined`, with
-no host sysctl change despite `perf_event_paranoid=4` and `kptr_restrict=1`.
-
-Frames present in io_uring and absent from epoll's top set: `do_user_addr_fault` 2.31%,
-`refill_stock` 1.78%, `clear_page_erms` 1.48%, `page_counter_try_charge` 1.26%. `fget` 1.68% against
-epoll's `__fdget` 1.58%, which **ruled out registered files** before any JNI was written.
-
-### C3. Sampler accounting check [SOLID] — an instrument caveat
-
-| | system time share of CPU | share of samples on kernel frames |
-|---|---|---|
-| epoll | 67.9% | 65.8% |
-| io_uring | 66.5% | **18.8%** |
-
-epoll accounts for itself; io_uring's kernel time is 3.5x under-reported at 1 KB, ~30% at 256 KB.
-
-**Falsified**: the `io_wq` explanation. A thread census during steady state found no `iou-wrk-*`
-threads on either side, so nothing is punted and operations complete inline.
-
-**[UNCERTAIN] Cause not established.** Untested candidates: perf sample throttling, samples inside
-`io_uring_enter` with no Java frame to join to, NET_RX softirq charged to the current task with a
-kernel-only stack.
-
-### C4. Profile at 256 KB, both sides [SOLID]
-
-Both CPU-saturated at ~78 core-seconds, so equal CPU and half the throughput. io_uring 968 us/req
-against epoll 468.
-
-Per request (absolute samples divided by requests, since throughputs differ 2.16x):
-
-| frame | epoll | io_uring | ratio |
-|---|---|---|---|
-| `jlong_disjoint_arraycopy` | 0.121 | 0.214 | 1.77x |
-| `Copy::fill_to_memory_atomic` | 0.023 | 0.054 | 2.32x |
-| `rep_movs_alternative` (kernel copy) | 0.078 | 0.066 | 0.85x |
-
-Stack walking split this in two: the client-side fill is the **load generator's own payload
-construction** (`RequestLoop.sendClosed -> writeZero`), identical work in both. The server-side one is
-netty: `DirectArena.newChunk -> ByteBuffer.allocateDirect`, **7 samples on epoll against 1,201 on
-io_uring**. Raw stacks in `stack64.log` and `stack256.log` on thor.
-
-**[UNCERTAIN]** `stack64.log` and `stack256.log` were produced by the background agent and have not
-been read. They may contain more than C4 quotes.
-
----
-
-## Part D: what exists, and what is still open
-
-### Scripts, committed under `loadtest/scripts/`
-
-`thor-pincache.sh` (B9), `thor-mech.sh` (B10), `thor-tlswarm.sh` (B12). Earlier ad hoc scripts live
-only in the job tmp directory and on thor.
-
-### Harness options added during the work
-
-`--rate` (open loop), `--ring-size`, `--buffer-ring`, `--buffer-ring-size`, `--zc-threshold`,
-`--sndbuf`, `--rcvbuf-max`. Server reports `SERVERCPU` every 2 s with CPU, GC, context switches,
-`usedDirectMb` and `pooledChunks`.
-
-### Open, in rough priority order
-
-1. **Re-run B8 under corrected pinning with error bars.** The published payload curve rests on single
-   runs at 8 KB and 256 KB.
-2. **Settle B7.** Assert `IoUringBufferRing.isUsable()` and abort if false, then re-measure.
-3. **Repeat B12 interleaved** before quoting the TLS ordering outside this branch.
-4. **Re-establish the Part A unit** by re-running one cell, so the absolute handshake numbers become
-   publishable.
-5. **Repeat the size sweep on kernel 6.10 or newer**, which is where send-zc coalescing and
-   send/recv bundles land, before any result is framed as an io_uring property rather than a
-   netty-on-6.8 property.
-6. **Explain C3.** Or at minimum publish the checking rule without the cause.
-7. **The open-loop p99 anomaly from B5.**
-8. Microbench payload-size and cert-type axes; `ci-tls-matrix.yml` has never executed.
-
-### Not done, deliberately
-
-Nothing filed upstream. Two netty bugs are written up and waiting on review: the
-`IoUringBufferRingConfig.builder()` `batchSize` trap, and multishot recv being inert unless a buffer
-ring is configured.
+1. **The uncommitted scratch scripts.** Copies exist only on thor and in a job scratch directory.
+2. **The `[SOLID, RECALLED]` numbers.** Recoverable by reading the logs on thor, which is a cheap
+   thing to do once and would upgrade most of Part A.
+3. **The JMH unit ambiguity.** One re-run settles it permanently.
+4. **thor itself.** Everything here is one machine, reachable over a VPN that dropped mid-session at
+   least once. Kernel version, core count and SMT topology are all load-bearing for the io_uring
+   results.
