@@ -20,6 +20,7 @@ import io.netty.bootstrap.Bootstrap;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.PooledByteBufAllocator;
+import io.netty.channel.AdaptiveRecvByteBufAllocator;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
@@ -133,6 +134,7 @@ public final class LoadTest {
                         }
                     });
             applyZeroCopy(b, t, a);
+            applyBufferTuning(b, a);
             Channel ch = b.bind(new InetSocketAddress(a.get("host", "0.0.0.0"), a.getInt("port", 9999)))
                           .sync().channel();
             // Cumulative snapshots on a fixed cadence, rather than one total at shutdown. The
@@ -149,7 +151,9 @@ public final class LoadTest {
             System.out.println("READY transport=" + t + " tls=" + a.get("tls", "none")
                     + " backlog=" + a.getInt("backlog", 8192) + " threads=" + a.threads()
                     + " ringSize=" + ringSize + " bufferRing=" + bufRing
-                    + (bufRing > 0 ? " bufferSize=" + bufSize : ""));
+                    + (bufRing > 0 ? " bufferSize=" + bufSize : "")
+                    + " sndbuf=" + a.getInt("sndbuf", 0)
+                    + " rcvbufMax=" + a.getInt("rcvbuf-max", 0));
             System.out.flush();
             ch.closeFuture().sync();
         } finally {
@@ -207,6 +211,7 @@ public final class LoadTest {
                     .option(ChannelOption.ALLOCATOR, PooledByteBufAllocator.DEFAULT)
                     .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 30000);
             applyZeroCopy(b, t, a);
+            applyBufferTuning(b, a);
 
             // ---------------- ramp
             CountDownLatch ready = new CountDownLatch(connections);
@@ -467,6 +472,44 @@ public final class LoadTest {
      * unset, on the same rule as the transport selection: a cell labelled zero-copy that silently
      * was not would be worse than no cell at all.
      */
+    /**
+     * {@code --rcvbuf-max} bounds the adaptive receive-buffer guess, {@code --sndbuf} fixes
+     * SO_SNDBUF. Both exist to discriminate between two candidate mechanisms for the size cliff:
+     *
+     * <ul>
+     *   <li>A completion-based transport commits its receive buffer at submit time, so it holds one
+     *       per read in flight. Capping the guess caps that footprint; if the cliff is the pool
+     *       thrashing under 2x footprint, the cap should close most of the gap.</li>
+     *   <li>Netty's io_uring write path has no write spin loop: getWriteSpinCount() is consumed
+     *       nowhere in transport-classes-io_uring, so a partial write costs a POLL_ADD round trip
+     *       where epoll retries with another cheap write() up to 16 times. Partial writes per
+     *       message scale with payload against a fixed sndbuf, which also predicts a widening
+     *       deficit. A larger SO_SNDBUF means fewer partial writes; if the cliff follows sndbuf on
+     *       io_uring while epoll stays flat, the write path is the mechanism.</li>
+     * </ul>
+     */
+    private static void applyBufferTuning(AbstractBootstrap<?, ?> b, Args a) {
+        int sndbuf = a.getInt("sndbuf", 0);
+        int rcvbufMax = a.getInt("rcvbuf-max", 0);
+        boolean child = b instanceof ServerBootstrap;
+        if (sndbuf > 0) {
+            if (child) {
+                ((ServerBootstrap) b).childOption(ChannelOption.SO_SNDBUF, sndbuf);
+            } else {
+                b.option(ChannelOption.SO_SNDBUF, sndbuf);
+            }
+        }
+        if (rcvbufMax > 0) {
+            AdaptiveRecvByteBufAllocator bounded =
+                    new AdaptiveRecvByteBufAllocator(64, Math.min(2048, rcvbufMax), rcvbufMax);
+            if (child) {
+                ((ServerBootstrap) b).childOption(ChannelOption.RCVBUF_ALLOCATOR, bounded);
+            } else {
+                b.option(ChannelOption.RCVBUF_ALLOCATOR, bounded);
+            }
+        }
+    }
+
     private static void applyZeroCopy(AbstractBootstrap<?, ?> b, Transports t, Args a) {
         int threshold = a.getInt("zc-threshold", -1);
         if (threshold < 0) {
