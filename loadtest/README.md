@@ -566,12 +566,15 @@ Measured, in bytes of heap allocated per request, summed over the event loop thr
 
 | payload | client, default | client, fixed | server, default | server, fixed |
 |---|---|---|---|---|
-| 1 KB | 270 / 344 | 26 / 70 | 256 / 249 | 37 / 36 |
-| 64 KB | 291 / 367 | 39 / 91 | 278 / 424 | 54 / 70 |
-| 256 KB | 381 / 668 | 79 / 170 | 352 / 1019 | 130 / 154 |
+| 1 KB | 269 / 336 | 26 / 74 | 255 / 255 | 37 / 36 |
+| 64 KB | 292 / 367 | 39 / 91 | 277 / 580 | 55 / 67 |
+| 256 KB | 381 / 657 | 81 / 188 | 352 / 1006 | 132 / 154 |
 
-Two figures per cell, epoll first and io_uring second, from the harness-fixed-plus-warmed cell.
-Between 4x and 7x less heap allocated per request, and what remains is discussed below.
+Medians of five rounds. Two figures per cell, epoll first and io_uring second, from the
+harness-fixed-plus-warmed cell. Between 3.5x and 10x less heap per request, and what remains is
+discussed below. Note the io_uring server column before the fix: 580 bytes per request at 64 KB and
+1,006 at 256 KB, against epoll's flat 277 and 352. That excess is the arena creating chunks, and it
+is the heap shadow of a direct-memory problem.
 
 Direct memory is not in this table and cannot be, which is the whole reason the original problem
 hid: it is off-heap and the GC never sees it. Read it next to the pooled chunk counts below, never
@@ -674,13 +677,15 @@ At 1 KB neither transport moves even unwarmed (epoll 0 - 4 chunks, io_uring 0 - 
 same thing the earlier section found: twice a small footprint crosses nothing.
 
 **And at 64 KB it buys 14 points of ratio, from 41.3% to 55.0%, entirely on io_uring's side**
-(epoll gains 1.8%). Server heap allocation per request falls from 224 to 70 bytes at the same time,
+(epoll gains 1.8%). Server heap allocation per request falls from 226 to 67 bytes at the same time,
 which is the `PoolChunk` and `ByteBuffer` objects that a chunk creation costs.
 
 **At 256 KB it buys nothing at all: 55.5% to 56.2%, and both transports lose 1-4% in absolute
 throughput.** The io_uring cell there thrashes 0 to 39 chunks unwarmed and sits flat at 84 warmed,
-and delivers the same 4,700 req/s either way. So the chunk churn is real, it is io_uring's, it is
-removable, and at 500 connections **it does not cost throughput**. The memory-footprint feedback
+and delivers the same 4,700 req/s either way. The churn is not imaginary: the warm-up takes the
+io_uring server from 781 to 154 bytes of heap allocated per request, which is the `PoolChunk` and
+`ByteBuffer` bookkeeping disappearing. It just does not buy any throughput back. So the chunk churn
+is real, it is io_uring's, it is removable, and at 500 connections **it does not cost throughput**. The memory-footprint feedback
 loop described earlier in this file is therefore a contributor at 2000 connections and not a
 contributor at 500, which makes it a concurrency effect rather than a size effect, and the section
 that presents it as the root cause of the size cliff overstates it.
