@@ -169,3 +169,48 @@ epoll's profile accounts for itself. io_uring's kernel time is largely invisible
 even in real `perf` mode, and the `io_wq` explanation was tested and falsified. The cause is not
 established, so io_uring's profile is usable for the *shape* of its user-space work and not for
 percentages. Reading it without this check would have understated its kernel share by ~3.5x.
+
+
+## Crossing the transports: the deficit is symmetric, and two earlier claims are withdrawn
+
+Every run before this one used the same transport on both ends, so "io_uring is 30% slower" really
+meant "io_uring on both ends is 30% slower" and could not say which side paid. Client and server
+are separate processes sharing only a TCP connection, so the full 2x2 costs nothing to run.
+
+Five interleaved rounds, 10k connections, 10 s, 1 KB payload, x86_64:
+
+| server | client | round spread | median req/s | server stime/req |
+|---|---|---|---|---|
+| epoll | epoll | 124,125 - 166,896 | **139,356** | 15.6 us |
+| io_uring | epoll | 106,844 - 125,922 | 115,252 | **21.5 us** |
+| epoll | io_uring | 103,556 - 128,112 | 112,656 | 13.8 us |
+| io_uring | io_uring | 108,065 - 120,161 | 114,885 | ~20 us |
+
+epoll/epoll leads in all five rounds individually, not just on medians.
+
+**Two earlier claims in this file are withdrawn.**
+
+1. *"The plaintext deficit is concentrated in netty's client-side io_uring path."* Not supported.
+   Substituting io_uring on the server alone costs about as much as substituting it on the client
+   alone, and the two single-substitution cells are indistinguishable from each other round by
+   round. The penalty is symmetric.
+2. *"On the server, io_uring does what it promises: 12.80 us of kernel time per request against
+   epoll's 15.49, a 17% saving."* Not supported. With the client held at epoll so the server is
+   measured in isolation, the io_uring server uses **more** kernel time per request, 21.5 us
+   against 15.6. The 12.80 figure was one sample at the low end of a spread that runs from 12.6 to
+   22.4 in this data.
+
+Both errors have the same cause: a per-request CPU figure from a single paired run was read as a
+property of one side. Only holding one side fixed can attribute cost to a side, and that is a
+different experiment from the one that had been run.
+
+The third observation is the interesting one: **the two penalties do not add.** io_uring on both
+ends is no worse than io_uring on one. In a closed-loop request/response the slowest stage sets the
+rate, so once either side is the bottleneck, degrading the other changes nothing until it becomes
+the bottleneck in turn. That is consistent with the data and means the 2x2 cannot be read as two
+independent additive effects.
+
+Caveat on this run: epoll/epoll drifted upward across rounds (131k, 124k, 139k, 167k, 166k), so the
+machine was not in a steady state for the whole hour. Interleaving means every cell saw the same
+drift, and the per-round ordering is unaffected, but the medians carry more uncertainty than their
+spread alone suggests.
