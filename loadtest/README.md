@@ -545,3 +545,278 @@ should be repeated interleaved before it is quoted anywhere outside this file.
 This is consistent with the read-count mechanism rather than in tension with it. TLS at 1 KB spends
 most of its time in crypto, so per-read transport overhead is a much smaller share of the total, and
 io_uring's batching across ten thousand connections is free to show up.
+
+
+## The load generator was allocating on every request, and it was changing the answer
+
+Stack walking at 256 KB found the client's top page-zeroing site inside the harness itself:
+`RequestLoop.sendClosed -> PooledUnsafeDirectByteBuf.writeZero -> UnsafeByteBufUtil.setZero ->
+Unsafe.setMemory0`. It built its payload by memsetting a fresh buffer on every request. At 64 KB and
+41,000 req/s that is 2.6 GB/s of memset on the client alone, it scales with payload, and payload was
+the axis the size cliff lives on. The measuring instrument was a variable in its own experiment.
+
+`--prealloc` removes it: one frame built at startup with its length header inside the same buffer,
+re-derived per request with `PooledByteBuf.retainedSlice` (a `Recycler` instance, so no allocation
+and no memset), `LengthFieldPrepender` gone from both pipelines, void promises instead of a
+`DefaultChannelPromise` per write, one histogram per event loop instead of a lock per request, and a
+primitive ring instead of an `ArrayDeque<Long>` that boxed a nanotime per request. Off by default,
+so every number above stays reproducible.
+
+Measured, in bytes of heap allocated per request, summed over the event loop threads:
+
+| payload | client, default | client, fixed | server, default | server, fixed |
+|---|---|---|---|---|
+| 1 KB | 270 / 344 | 26 / 70 | 256 / 249 | 37 / 36 |
+| 64 KB | 291 / 367 | 39 / 91 | 278 / 424 | 54 / 70 |
+| 256 KB | 381 / 668 | 79 / 170 | 352 / 1019 | 130 / 154 |
+
+Two figures per cell, epoll first and io_uring second, from the harness-fixed-plus-warmed cell.
+Between 4x and 7x less heap allocated per request, and what remains is discussed below.
+
+Direct memory is not in this table and cannot be, which is the whole reason the original problem
+hid: it is off-heap and the GC never sees it. Read it next to the pooled chunk counts below, never
+on its own.
+
+### The flag bundles three things, so it is decomposed rather than reported as one number
+
+`--prealloc` turns on harness allocation removal, an arena warm-up and a fixed receive allocator
+together. Attributing the result to whichever of the three is in the label is the mistake this
+branch has already made twice, so `--no-warm` and `--no-fixed-rcvbuf` turn them on one at a time.
+All cells 5 interleaved rounds, plaintext, corrected physical-core pinning.
+
+**64 KB, 2000 connections:**
+
+| cell | rounds | median | io_uring as % of epoll |
+|---|---|---|---|
+| epoll, default | 39,826 - 42,568 | 41,340 | |
+| io_uring, default | 17,908 - 19,178 | 18,621 | 45.0% |
+| epoll, harness fixed | 50,874 - 51,566 | 51,147 | |
+| io_uring, harness fixed | 20,807 - 21,590 | 21,110 | 41.3% |
+| epoll, + arena warm-up | 51,810 - 52,783 | 52,043 | |
+| io_uring, + arena warm-up | 28,506 - 28,957 | 28,636 | **55.0%** |
+| epoll, + fixed 64 KB receive | 34,032 - 34,804 | 34,376 | |
+| io_uring, + fixed 64 KB receive | 28,863 - 29,405 | 29,065 | 84.6% |
+
+**256 KB, 500 connections:**
+
+| cell | rounds | median | io_uring as % of epoll |
+|---|---|---|---|
+| epoll, default | 8,605 - 8,705 | 8,667 | |
+| io_uring, default | 3,894 - 4,039 | 3,924 | 45.3% |
+| epoll, harness fixed | 8,554 - 8,653 | 8,580 | |
+| io_uring, harness fixed | 4,712 - 4,787 | 4,761 | **55.5%** |
+| epoll, + arena warm-up | 8,176 - 8,362 | 8,218 | |
+| io_uring, + arena warm-up | 4,544 - 4,633 | 4,619 | 56.2% |
+| epoll, + fixed 64 KB receive | 5,934 - 6,020 | 5,935 | |
+| io_uring, + fixed 64 KB receive | 4,490 - 4,660 | 4,649 | 78.3% |
+
+**1 KB, 10000 connections:**
+
+| cell | rounds | median | io_uring as % of epoll |
+|---|---|---|---|
+| epoll, default | 162,239 - 172,282 | 168,213 | |
+| io_uring, default | 103,922 - 108,051 | 105,721 | 62.8% |
+| epoll, harness fixed | 200,964 - 212,163 | 204,282 | |
+| io_uring, harness fixed | 162,287 - 174,236 | 170,127 | 83.3% |
+| epoll, + arena warm-up | 200,255 - 212,227 | 207,013 | |
+| io_uring, + arena warm-up | 165,356 - 182,810 | 175,645 | **84.8%** |
+| epoll, + fixed 64 KB receive | 135,846 - 212,013 | 204,923 | |
+| io_uring, + fixed 64 KB receive | 177,966 - 188,862 | 186,676 | 91.1% |
+
+Spreads are 1-4% in almost every cell and no two cells being compared overlap, with one exception
+noted below.
+
+### io_uring still loses, and the size curve is not the shape this file recorded
+
+**The deficit survives.** With the harness fixed and the arenas pre-warmed, io_uring is at 84.8% of
+epoll at 1 KB, 55.0% at 64 KB and 56.2% at 256 KB. It has never once beaten epoll on plaintext in
+any of these thirty cells. The conclusion that netty's io_uring transport scales badly with message
+size stands.
+
+**But it stops widening at 64 KB.** 84.8% to 55.0% to 56.2%: the gap opens between 1 KB and 64 KB
+and is then flat to 256 KB. The default-harness cells say the same thing, 62.8% to 45.0% to 45.3%.
+The table earlier in this file that runs 87% / 75% / 47% / 41% and reads as a monotonic cliff was a
+single run under the sibling-sharing cpusets. **The 41%-at-256-KB point does not reproduce**, and
+"the deficit widens with message size" should be stated as "the deficit opens between 1 KB and
+64 KB", which is a claim about crossing the adaptive receive allocator's 64 KB ceiling rather than
+about size in general.
+
+**Removing the harness's allocation raises io_uring at 1 KB and 256 KB but not at 64 KB.** 62.8 to
+83.3 and 45.3 to 55.5, against 45.0 to 41.3. At 64 KB epoll gains 24% from the fix and io_uring only
+13%, so the ratio moves the wrong way. This is reproducible across five rounds with 1.4% spreads, so
+it is not noise, and it is the one place where the harness was flattering io_uring rather than the
+reverse. No mechanism offered for it: at 64 KB epoll was running at 41k req/s against io_uring's
+19k, so the client-side memset was a much larger share of epoll's cell, and freeing it helps the
+faster transport more. That is a hypothesis, not a measurement.
+
+### What the arena warm-up is worth, and where it is worth nothing
+
+The warm-up forces the chunks the run will use into existence before the ramp and pins one buffer in
+each, because netty destroys a chunk the moment it goes fully free (`q000.prevList(null)` in
+`PoolArena`, so `PoolChunkList.free` on an emptied q000 chunk falls through to `destroyChunk`). It
+runs on the event loop threads, because a pooled allocation is served from the allocating thread's
+arena and warming from `main` would grow one arena and leave the others cold.
+
+It works, measured by the metric the earlier root-cause section used:
+
+| cell | server pooled chunks across the run |
+|---|---|
+| epoll, 64 KB, default | 0 - 4 |
+| io_uring, 64 KB, default | 0 - 57 |
+| io_uring, 64 KB, harness fixed | 0 - 57 |
+| io_uring, 256 KB, harness fixed | 0 - 39 |
+| epoll, 64 KB, warmed | 80, every sample |
+| io_uring, 64 KB, warmed | 80 - 86 |
+| io_uring, 256 KB, warmed | 84, every sample |
+| both transports, 1 KB, warmed | 8, every sample |
+
+At 1 KB neither transport moves even unwarmed (epoll 0 - 4 chunks, io_uring 0 - 8), which is the
+same thing the earlier section found: twice a small footprint crosses nothing.
+
+**And at 64 KB it buys 14 points of ratio, from 41.3% to 55.0%, entirely on io_uring's side**
+(epoll gains 1.8%). Server heap allocation per request falls from 224 to 70 bytes at the same time,
+which is the `PoolChunk` and `ByteBuffer` objects that a chunk creation costs.
+
+**At 256 KB it buys nothing at all: 55.5% to 56.2%, and both transports lose 1-4% in absolute
+throughput.** The io_uring cell there thrashes 0 to 39 chunks unwarmed and sits flat at 84 warmed,
+and delivers the same 4,700 req/s either way. So the chunk churn is real, it is io_uring's, it is
+removable, and at 500 connections **it does not cost throughput**. The memory-footprint feedback
+loop described earlier in this file is therefore a contributor at 2000 connections and not a
+contributor at 500, which makes it a concurrency effect rather than a size effect, and the section
+that presents it as the root cause of the size cliff overstates it.
+
+### Forcing epoll to commit a full-size receive buffer costs it a third of its throughput
+
+The third component is the one that must not be folded into a pre-allocation flag, and measuring it
+separately is why. A `FixedRecvByteBufAllocator` at 64 KB, which is the adaptive allocator's own
+default ceiling, costs **epoll 34% at 64 KB** (52,043 to 34,376) and **epoll 28% at 256 KB** (8,218
+to 5,935), while io_uring gains 1.5% and loses 1.8% respectively. Both cells are warmed, so this is
+not chunk churn.
+
+That is a direct measurement of the structural tax on completion-based I/O, run on the readiness
+transport. Epoll allocates its receive buffer when data is already there and the adaptive allocator
+shrinks the guess to fit; a completion transport must commit a buffer when it SUBMITS the read.
+Taking epoll's ability to right-size that buffer away is worth a third of its throughput, and it
+lands epoll within 16% of io_uring at 64 KB. The 84.6% and 78.3% figures in the tables are epoll
+being crippled, not io_uring recovering, and quoting them as a pre-allocation win would be exactly
+the kind of mislabelled cell this file keeps having to retract.
+
+### The mechanism discriminator, re-run on a harness that does not allocate
+
+The sweep that separated the three candidate mechanisms was run again with
+`--prealloc --no-fixed-rcvbuf` on both sides, so the receive-allocator axis is the sweep's own and
+nothing else moved. 64 KB, 2000 connections, 5 interleaved rounds.
+
+| cell | rounds | median | previous run, allocating harness |
+|---|---|---|---|
+| epoll, default | 50,909 - 52,818 | 51,606 | 40,630 |
+| io_uring, default | 28,483 - 29,044 | 28,658 | 17,257 |
+| io_uring, `SO_SNDBUF=64K` | 28,348 - 28,983 | 28,612 | 17,089 |
+| io_uring, `SO_SNDBUF=1M` | 28,391 - 29,307 | 28,624 | 17,502 |
+| io_uring, `--rcvbuf-max=16K` | 15,901 - 16,605 | **16,130** | 13,586 |
+| io_uring, `--rcvbuf-max=512K` | 41,387 - 42,353 | **42,047** | 23,458 |
+
+**Both conclusions survive, and the second one gets stronger.**
+
+The write path is still not the mechanism. A 16x larger send buffer moves io_uring by 0.2%:
+28,658 / 28,612 / 28,624 is one number, and the three ranges overlap completely. Netty's io_uring
+transport still never reads `getWriteSpinCount()`, and that still does not matter here.
+
+The receive buffer is still the mechanism and its effect is now larger, not smaller. 16 KB gives
+16,130, the 64 KB default gives 28,658, 512 KB gives 42,047: a **161% span** driven by one knob,
+against 73% when the harness was allocating. Throughput is inversely ordered with reads per message
+in every cell, which is roughly 5 reads at 16K, 2 at 64K and 1 at 512K for a 65,540-byte frame.
+
+And with the harness fixed, that one option takes io_uring from 55.5% to **81.5%** of epoll at 64 KB.
+Under the allocating harness the same option moved it from 42% to 58%. So the earlier statement that
+it "recovers about a third of the gap" understated it: on a clean harness it recovers close to
+three-fifths.
+
+### What still allocates, and whose code it is in
+
+Counters say how much. They cannot say whose, and this branch has already been burned once by a
+number that looked authoritative and was not, so the remainder is named from async-profiler's JVMTI
+`alloc` event rather than assumed. 64 KB, 2000 connections, 20 s, client side, glibc image.
+
+**Default harness.** Sixty-one percent of everything the client allocates is promises:
+
+| site | share of allocated bytes, epoll | io_uring |
+|---|---|---|
+| `io.netty.channel.DefaultChannelPromise` | 45.7% | 32.7% |
+| `io.netty.util.concurrent.PromiseCombiner` (+ `$1`) | 15.2% | 15.8% |
+
+Both are the harness's doing. `writeAndFlush(msg)` with no promise argument calls `newPromise()`,
+which is one `DefaultChannelPromise` per request at each end. `PromiseCombiner` is what
+`MessageToMessageEncoder` uses when an encoder emits more than one message, which is exactly what
+`LengthFieldPrepender` does: header buffer, then body. Neither survives `--prealloc`.
+
+**With `--prealloc` and leak detection off, heap allocation per request is 5.0 bytes on epoll and
+23.3 bytes on io_uring**, against 206 and 310 for the default harness. Epoll's profile has no
+request-path site left in it at all: its largest single entry is `ZipFile$Source.initCEN` under
+`AppClassLoader.loadClass`, which is the JVM opening the shaded jar at startup.
+
+io_uring's remainder is netty's, and it is specific:
+
+    io.netty.channel.uring.IoUringIoOps          16.8% of client bytes, 15.9% of server bytes
+      IoUringIoOps.newSend  <- scheduleWriteSingle <- doWrite <- flush0
+      IoUringIoOps.newRecv  <- scheduleRead0 <- scheduleFirstRead <- pollIn <- pollAddComplete
+
+One `IoUringIoOps` per submitted operation, on both the send and the receive path. It is a small
+object and 23 bytes per request is not a throughput problem on its own, but the second stack is
+worth reading twice: `pollAddComplete -> pollIn -> scheduleFirstRead -> newRecv` is the POLL_ADD
+followed by RECV path, caught in the act, allocating once for each of the two operations that epoll
+does not have to submit at all.
+
+**Netty's leak detector is not free at these rates.** It defaults to `simple`, which samples roughly
+one buffer in 128 and allocates a `ResourceLeakDetector$TraceRecord` when it does. Turning it off
+takes the pre-allocated client from 41.4 to 5.0 bytes per request on epoll and 60.0 to 23.3 on
+io_uring, so it was about 36 bytes of the remainder. Every sweep in this section ran with netty's
+default on, on both transports, so it is a constant and not a confound, but a run that wants to
+claim zero allocation has to set `-Dio.netty.leakDetection.level=disabled` and say so.
+
+### How to reproduce, and what to pass
+
+    # the clean allocation-free cell: harness fixed, arenas warmed, receive allocator untouched
+    --prealloc --no-fixed-rcvbuf --payload=65536 --connections=2000
+
+`--prealloc` needs `--payload` on the server too, and either `--connections` or `--warmup-mb` to
+size the warm-up. It aborts if it cannot warm the arenas rather than running a cell labelled
+pre-allocated that is not, and `--jvm-tuned` aborts unless the JVM was actually started with
+`-Xms` equal to `-Xmx`, `-XX:+AlwaysPreTouch` and an explicit `-XX:MaxDirectMemorySize`.
+
+**Pinning the heap is not established as an effect.** Five interleaved rounds at 64 KB, 2000
+connections, with and without `-Xms1g -Xmx1g -XX:+AlwaysPreTouch -XX:MaxDirectMemorySize=2g`:
+
+| cell | rounds | median |
+|---|---|---|
+| epoll, `--prealloc` | 34,001 - 34,450 | 34,192 |
+| epoll, `--prealloc --jvm-tuned` | 34,246 - 34,731 | 34,634 |
+| io_uring, `--prealloc` | 28,701 - 29,328 | 29,059 |
+| io_uring, `--prealloc --jvm-tuned` | 28,760 - 29,250 | 29,214 |
+
+Both pairs overlap, so by this branch's own rule that is no effect rather than a small one. Which is
+the expected answer once the pooled allocator is warmed: the payload lives in direct memory, the
+request path allocates single-digit bytes of heap, and there is almost nothing left for a pre-touched
+heap to help with. The flag stays because it removes a variable and because its absence has to be
+demonstrated rather than assumed, not because it bought anything here.
+
+Develop reference counting in the request path under `-Dio.netty.leakDetection.level=paranoid` and
+turn it off to measure. Paranoid takes allocation from 5 bytes per request to roughly 68,000, which
+makes any leak obvious and any measurement worthless.
+
+### What this changes in the sections above
+
+- **The headline conclusion stands.** Reads per message is still the mechanism, the write path is
+  still not, and io_uring still loses on plaintext at every payload tested. The read-buffer lever is
+  bigger on a clean harness, not smaller.
+- **"The deficit widens with message size" needs narrowing to "between 1 KB and 64 KB".** The
+  87 / 75 / 47 / 41 curve was one run under the sibling-sharing cpusets. Five interleaved rounds
+  under corrected pinning give 62.8% / 45.0% / 45.3% by default and 84.8% / 55.0% / 56.2% with the
+  harness fixed. Both are flat from 64 KB to 256 KB. **The 41%-at-256-KB point is withdrawn.**
+- **The memory-footprint feedback loop is demoted again.** It is real, it is io_uring's, and warming
+  the arena is worth 14 points of ratio at 64 KB and 2000 connections. At 256 KB and 500 connections
+  the identical churn costs nothing. That makes it a concurrency effect, not the size effect it was
+  presented as.
+- **Every absolute number recorded before this section carries a harness that memset its payload per
+  request.** The orderings all survive; the magnitudes move by up to 60% at 1 KB. Anything quoted
+  outside this file should come from a `--prealloc` cell.
