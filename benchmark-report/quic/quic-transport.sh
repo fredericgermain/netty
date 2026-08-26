@@ -28,12 +28,14 @@ THREADS=4
 require_idle || exit 1
 
 echo "# q2 quic datagram transport sweep  rounds=$ROUNDS duration=${DUR}s connections=$CONNS payload=$PAYLOAD"
-echo "# image=$IMG rmem_max=$(cat /proc/sys/net/core/rmem_max) wmem_max=$(cat /proc/sys/net/core/wmem_max)"
-printf 'round\tcell\tsockets\tconnPerSec\trampMs\treqPerSec\tp50us\tp99us\tp999us\terrors\tudpRcvbufErrDelta\tudpInErrDelta\tmhzMin\tmhzMax\tmhzMean\ttempMaxC\tthrottleDelta\n'
+echo "# image=$IMG"
+host_header
+printf 'round\tcell\tsockets\tconnPerSec\trampMs\treqPerSec\tp50us\tp99us\tp999us\terrors\tudpRcvbufErrDelta\tudpInErrDelta\t'"$ENV_HEADER"'\n'
 
 cell() {   # cell <round> <transport> <server-sockets>
   local round=$1 tr=$2 socks=$3
   local port srv before after
+  await_quiet || { echo "# ABORT: host never went quiet" >&2; return 1; }
   port=$(free_port) || return 1
 
   before=$(udp_counters)

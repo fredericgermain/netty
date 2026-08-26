@@ -27,6 +27,7 @@ CLIENT_OUT="${CLIENT_OUT:-/tmp/q-client-out.$$}"
 
 # Set by run_client, read by the callers when they format a row.
 CELL_MHZ_MIN=- ; CELL_MHZ_MAX=- ; CELL_MHZ_MEAN=- ; CELL_TEMP_MAX=- ; CELL_THROTTLE=-
+CELL_SRV_MHZ=- ; CELL_CLI_MHZ=- ; CELL_FOREIGN=0 ; CELL_CONTENDED=no
 
 cleanup() {
   docker rm -f "$SRV_NAME" >/dev/null 2>&1 || true
@@ -96,37 +97,71 @@ throttle_delta() {   # throttle_delta "<before>" "<after>"  ->  d0/d1/d2/d3
   echo "$out"
 }
 
-sample_loop() {   # sample_loop <outfile>; one line per tick: "<mhz> <mhz> ... | <milliCelsius>"
+# Containers that are not this sweep's and not the unrelated always-present one. A single foreign
+# container is enough to invalidate a cell on this host: a contended round has been observed to
+# INVERT a transport ordering, not merely add noise, so this is a disqualifier and not a caveat.
+foreign_containers() {
+  docker ps --format '{{.Names}}' 2>/dev/null \
+    | grep -vE "^(claudecodeui|${SRV_NAME}|${CLI_NAME})\$" || true
+}
+
+# One line per tick: "<mhz per cpu, in cpu order> | <milliCelsius> | <foreign container count>"
+#
+# The per-CPU frequencies are kept separate rather than averaged, because the client and the server
+# are pinned to different physical cores and the question of whether one side is running slower than
+# the other is exactly the kind of thing that would look like a protocol difference.
+#
+# The foreign-container count is refreshed every fourth tick rather than every tick: `docker ps` is
+# far dearer than reading two procfs files, and this sampler runs on the machine being measured.
+sample_loop() {
+  local i=0 foreign=0
   while :; do
-    printf '%s| %s\n' \
+    if [ $((i % 4)) -eq 0 ]; then
+      foreign=$(foreign_containers | grep -c . || true)
+    fi
+    i=$((i + 1))
+    printf '%s| %s | %s\n' \
       "$(awk '/^cpu MHz/ { printf "%.0f ", $4 }' /proc/cpuinfo)" \
-      "$(cat /sys/class/thermal/thermal_zone*/temp 2>/dev/null | sort -n | tail -1)"
+      "$(cat /sys/class/thermal/thermal_zone*/temp 2>/dev/null | sort -n | tail -1)" \
+      "$foreign"
     sleep 0.5
   done > "$1" 2>/dev/null
 }
 
 # Drops the first four ticks, which is the two seconds covering process start and the ramp, so the
 # frequency reported is the frequency during the measured window rather than an average with idle.
+#
+# Server cores are 0,1,4,5 and client cores 2,3,6,7, which in /proc/cpuinfo order are fields
+# 1,2,5,6 and 3,4,7,8. Reported separately so an asymmetry between the two sides is visible.
 summarise_samples() {
   local s
   s=$(awk -F'|' 'NR > 4 {
         n = split($1, f, " ")
         for (i = 1; i <= n; i++) {
-          if (mn == "" || f[i] + 0 < mn) mn = f[i] + 0
-          if (mx == "" || f[i] + 0 > mx) mx = f[i] + 0
-          sum += f[i] + 0; cnt++
+          v = f[i] + 0
+          if (mn == "" || v < mn) mn = v
+          if (mx == "" || v > mx) mx = v
+          sum += v; cnt++
         }
-        t = $2 + 0
-        if (t > tmax) tmax = t
+        if (n >= 8) {
+          srv += f[1] + f[2] + f[5] + f[6]; srvn += 4
+          cli += f[3] + f[4] + f[7] + f[8]; clin += 4
+        }
+        if ($2 + 0 > tmax) tmax = $2 + 0
+        if ($3 + 0 > fmax) fmax = $3 + 0
       }
       END {
-        if (cnt == 0) { print "- - - -"; exit }
-        printf "%d %d %d %.1f\n", mn, mx, sum / cnt, tmax / 1000
+        if (cnt == 0) { print "- - - - - - -"; exit }
+        printf "%d %d %d %d %d %.1f %d\n", mn, mx, sum / cnt,
+               (srvn ? srv / srvn : 0), (clin ? cli / clin : 0), tmax / 1000, fmax
       }' "$1")
   CELL_MHZ_MIN=$(echo "$s" | awk '{print $1}')
   CELL_MHZ_MAX=$(echo "$s" | awk '{print $2}')
   CELL_MHZ_MEAN=$(echo "$s" | awk '{print $3}')
-  CELL_TEMP_MAX=$(echo "$s" | awk '{print $4}')
+  CELL_SRV_MHZ=$(echo "$s" | awk '{print $4}')
+  CELL_CLI_MHZ=$(echo "$s" | awk '{print $5}')
+  CELL_TEMP_MAX=$(echo "$s" | awk '{print $6}')
+  CELL_FOREIGN=$(echo "$s" | awk '{print $7}')
 }
 
 # ---------------------------------------------------------------- host state
@@ -143,7 +178,7 @@ summarise_samples() {
 # the fact belongs in the log rather than in nobody's memory. It does NOT relax the CPU check.
 require_idle() {
   local busy idle
-  busy=$(ps -eo args | grep -E 'run-netty|echo_bench|lt\.jar' | grep -v grep || true)
+  busy=$(ps -eo args | grep -E 'run-netty|run-matrix|echo_bench|lt\.jar' | grep -v grep || true)
   if [ -n "$busy" ]; then
     if [ "${ALLOW_NEIGHBOUR:-0}" = 1 ]; then
       echo "# NEIGHBOUR-PRESENT (allowed explicitly): $(echo "$busy" | tr '\n' ';')"
@@ -159,6 +194,43 @@ require_idle() {
     return 1
   fi
   echo "# host idle, cpu idle ${idle}%, throttleCounts(c0-c3)=$(throttle_counts)"
+}
+
+# The per-cell gate, and the one that actually protects a result.
+#
+# A once-per-sweep check is not enough and this is not hypothetical: a sweep here passed its
+# starting gate and then had a neighbour's experiment start on top of it three minutes before the
+# end, and that whole sweep had to be discarded because a contended cell cannot be told from a clean
+# one by looking at the number. So the gate runs before every cell, and requires BOTH that no
+# foreign container exists AND that the CPU is at least 85% idle. run_client then re-checks
+# throughout the measured window and tags the row.
+require_quiet() {
+  local foreign idle
+  foreign=$(foreign_containers | tr '\n' ' ')
+  if [ -n "${foreign// /}" ]; then
+    echo "FOREIGN-CONTAINER: $foreign" >&2
+    return 1
+  fi
+  idle=$(vmstat 1 2 | tail -1 | awk '{print $15}')
+  if [ "$idle" -lt 85 ]; then
+    echo "NOT-QUIET: cpu idle ${idle}%" >&2
+    return 1
+  fi
+  return 0
+}
+
+# Blocks until require_quiet passes, or gives up. Used between cells so a sweep pauses for a
+# neighbour rather than recording through one.
+await_quiet() {
+  local i
+  for i in $(seq 1 "${AWAIT_POLLS:-60}"); do
+    if require_quiet 2>/dev/null; then
+      return 0
+    fi
+    sleep 30
+  done
+  echo "AWAIT-QUIET-GAVE-UP" >&2
+  return 1
 }
 
 # ---------------------------------------------------------------- containers
@@ -224,6 +296,10 @@ run_client() {
   docker rm -f "$CLI_NAME" >/dev/null 2>&1 || true
   summarise_samples "$samples"
   CELL_THROTTLE=$(throttle_delta "$before" "$after")
+  # Contended means a foreign container was seen at any point inside the measured window. On this
+  # host that is a disqualifier: a contended round has been observed to reverse a transport
+  # ordering, so such a row must be discarded rather than averaged in with a footnote.
+  CELL_CONTENDED=$([ "${CELL_FOREIGN:-0}" -gt 0 ] && echo CONTENDED || echo no)
   rm -f "$samples"
   return $rc
 }
@@ -238,8 +314,21 @@ field() {   # field <line> <key>   -- pulls key=value out of a harness output li
   echo "$1" | tr ' ' '\n' | awk -F= -v k="$2" '$1 == k { print $2 }'
 }
 
-# The five columns every sweep appends to a row, in a fixed order so the TSVs stay comparable.
+# The columns every sweep appends to a row, in a fixed order so the TSVs stay comparable.
 env_columns() {
-  printf '%s\t%s\t%s\t%s\t%s' \
-    "$CELL_MHZ_MIN" "$CELL_MHZ_MAX" "$CELL_MHZ_MEAN" "$CELL_TEMP_MAX" "$CELL_THROTTLE"
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s' \
+    "$CELL_MHZ_MIN" "$CELL_MHZ_MAX" "$CELL_MHZ_MEAN" "$CELL_SRV_MHZ" "$CELL_CLI_MHZ" \
+    "$CELL_TEMP_MAX" "$CELL_THROTTLE" "$CELL_CONTENDED"
+}
+
+ENV_HEADER='mhzMin\tmhzMax\tmhzMean\tsrvMhz\tcliMhz\ttempMaxC\tthrottleDelta\tcontended'
+
+# The line every sweep prints in its header, so a TSV records the machine state it was taken under
+# rather than leaving it to be recalled. The governor changed from powersave to performance partway
+# through this work and figures either side of that are not comparable.
+host_header() {
+  printf '# host governor=%s rmem_max=%s rmem_default=%s wmem_max=%s kernel=%s date=%s\n' \
+    "$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null)" \
+    "$(cat /proc/sys/net/core/rmem_max)" "$(cat /proc/sys/net/core/rmem_default)" \
+    "$(cat /proc/sys/net/core/wmem_max)" "$(uname -r)" "$(date -Is)"
 }
