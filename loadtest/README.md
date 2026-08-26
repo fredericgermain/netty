@@ -354,3 +354,69 @@ at equal load there is no per-operation difference to recover.
 **What follows for anyone running netty on io_uring**: size the allocator for roughly twice the
 direct memory epoll needs at the same load, or cap the receive buffer, and the cliff should not
 engage. Untested here, and stated as a prediction rather than a result.
+
+
+## Three corrections from the literature, all verified here
+
+A parallel review of the io_uring literature against these findings turned up three things that
+change the standing of results in this file. All three were checked against the source or the host
+before being recorded.
+
+### 1. The cpuset pinning in every script in this branch is wrong
+
+thor has 4 physical cores and 8 logical. `cpu0/topology/thread_siblings_list` is `0,4`, and likewise
+`1,5`, `2,6`, `3,7`. So `--cpuset-cpus=0-3` for the server and `4-7` for the client, described
+throughout as "disjoint cores", actually places client and server on **the same four physical cores
+as hyperthread siblings**. They compete for the same execution units, and a transport that burns
+more cycles is penalised superlinearly rather than proportionally.
+
+Every saturated cell in this file is affected, which is most of them. The equal-rate open-loop cell
+is the least affected, because neither side saturates there, and that is the cell the root-cause
+conclusion rests on. The size-cliff magnitudes are the numbers most at risk. They are not withdrawn,
+because the ordering is consistent across payloads and the mechanism is independently evidenced, but
+they must be re-measured with server on 0,1,4,5 and client on 2,3,6,7 before any of them is quoted
+outside this file.
+
+### 2. Netty's io_uring transport has no write spin loop
+
+`AbstractEpollStreamChannel.java:424-442` runs `do { doWriteMultiple / doWriteSingle } while
+(writeSpinCount > 0)`: up to 16 back-to-back `write`/`writev` syscalls in one event-loop turn. The
+io_uring path submits exactly one send op, and a short write goes to `schedulePollOut()`
+(`AbstractIoUringChannel.java:1004-1008`), costing a POLL_ADD SQE and CQE, a fresh send SQE and CQE,
+and an `io_uring_enter`, where epoll costs one more cheap `write`. `getWriteSpinCount()` is read
+**nowhere** in `transport-classes-io_uring`: the setters exist on every config class and nothing
+consumes them.
+
+Partial writes per message scale with message size against a fixed socket send buffer, so this
+predicts a deficit that widens with payload, which is what was measured. **This is a better-founded
+explanation of the size cliff than the memory-footprint story above**, and the two are not exclusive.
+It is also testable without patching netty: raising `SO_SNDBUF` reduces partial writes, so
+io_uring's deficit should shrink with a larger send buffer while epoll's stays flat.
+
+### 3. The pooled allocator's thread-local cache stops at 32 KB
+
+`PooledByteBufAllocator.java:125-126`, `io.netty.allocator.maxCachedBufferCapacity`, default
+`32 * 1024`. The cliff sits exactly on that boundary: 8 KB is 75% of epoll, 64 KB is 47%. Above
+32 KB every receive buffer bypasses the thread cache and goes to the arena, and io_uring holds far
+more of them live simultaneously because it commits the buffer at submit time.
+
+This makes the remediation testable with no code change at all:
+`-Dio.netty.allocator.maxCachedBufferCapacity=262144` on both transports at 64 KB and 256 KB.
+
+### Scope limits this review also established
+
+- **Kernel 6.8 predates the relevant io_uring networking work**: send-zc buffer coalescing and
+  send/recv bundles landed in 6.10, `IORING_ENTER_NO_IOWAIT` in 6.15. The SEND_ZC result above
+  (harmful below 64 KB) is **expected on this kernel** and must not be reported as a property of
+  io_uring; Axboe puts the post-6.10 crossover near 3000 bytes. Do not re-test it here.
+- **The buffer-ring result is now suspect rather than settled.** With no buffer ring configured
+  `isPollInFirst()` returns true (`AbstractIoUringStreamChannel.java:798-801`) and the read path is
+  POLL_ADD followed by RECV: two ops and two completions per read. Enabling a ring should delete
+  that round trip outright, so measuring 0% at 1 KB and +5% at 64 KB is more consistent with the
+  ring never engaging than with it engaging and not helping. That the two buffer sizes performed
+  nearly identically points the same way. Before the result is trusted, the cell must assert
+  `IoUringBufferRing.isUsable()` at runtime and abort if false, on the same rule as the transport
+  fallbacks.
+- **Loopback with queue depth 1 is io_uring's documented worst case**, since the syscall it exists
+  to amortise is close to a memcpy. Any write-up needs this as a stated scope limit.
+- Registered files being negligible is confirmed by the literature, so that negative result stands.
