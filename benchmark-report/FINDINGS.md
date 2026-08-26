@@ -194,9 +194,21 @@ And it gets worse with message size, which is the opposite of what everyone expe
 | 64 KB | 38,914 | 18,137 | 47% |
 | 256 KB | 9,259 | 3,767 | 41% |
 
-**[UNCERTAIN]** That sweep is a single run per cell, on the *old* (SMT-sibling) pinning. The 64 KB
-row was later reproduced properly across many interleaved rounds, so the shape is safe, but the 8 KB
-and 256 KB rows have no error bars and were never re-run under corrected pinning.
+**[WITHDRAWN] The 256 KB row and the word "monotonically".** That sweep was one run per cell on the
+old SMT-sibling pinning. Re-run properly with corrected pinning and a non-allocating harness, the
+deficit **opens between 1 KB and 64 KB and then flattens**:
+
+| payload | io_uring as % of epoll, default harness | harness fixed, arenas warmed |
+|---|---|---|
+| 1 KB | 62.8% | 84.8% |
+| 64 KB | 45.0% | 55.0% |
+| 256 KB | 45.3% | 56.2% |
+
+64 KB and 256 KB are the same number in both conditions. So the honest claim is **"the deficit opens
+between 1 KB and 64 KB"**, which is a statement about crossing netty's 64 KB adaptive receive
+ceiling, and not "it widens with message size" as I wrote. The mechanism is unchanged and in fact
+better supported: once every message needs more than one read, the per-read penalty is being paid,
+and paying it more times past that point does not change the ratio.
 
 **Published io_uring benchmarks say the gap should NARROW with size, not widen.** liburing issue
 #536, the most-cited io_uring-vs-epoll network benchmark, shows io_uring going from 32% of epoll at
@@ -217,7 +229,11 @@ and 256 KB rows have no error bars and were never re-run under corrected pinning
 | io_uring, receive buffer raised to 512K | **23,458** |
 
 A 16x larger *send* buffer moves nothing. The *receive* buffer moves throughput 73% and does it
-monotonically. That maps onto reads per message: a 64 KB payload plus its 4-byte header needs roughly
+monotonically. **Re-run with a non-allocating harness the separation gets sharper still**: send
+buffer moves io_uring 0.2% across the same 16x range (28,658 / 28,612 / 28,624) while the receive
+buffer moves it **161%** (16,130 / 28,658 / 42,047 at 16K / 64K / 512K), taking io_uring from 55.5%
+to **81.5%** of epoll. That single option recovers close to three-fifths of the gap, not the third I
+first reported. That maps onto reads per message: a 64 KB payload plus its 4-byte header needs roughly
 5 reads at a 16K buffer, 2 at 64K, 1 at 512K, and throughput is inversely ordered with the read count
 in every cell.
 
@@ -267,6 +283,35 @@ because raising it alone helped epoll more than io_uring. That was measured at 2
 is half of the largest win on the branch. **A lever tested alone can look useless when it is one of a
 pair.**
 
+## Independent confirmation from the allocation profile
+
+**[SOLID]** The harness was rebuilt to allocate essentially nothing per request, which was worth
+doing on its own (see below) but also produced the cleanest evidence for the mechanism on the whole
+branch.
+
+After removing the harness's own allocation, `event=alloc` profiling names what is left. On the
+io_uring client it is **`IoUringIoOps`, one instance per submitted operation**, and the allocating
+stack is `pollAddComplete -> pollIn -> scheduleFirstRead`. That is the POLL_ADD-then-RECV path caught
+in the act, allocating once for each of the two operations epoll never submits at all. Epoll's
+largest remaining site is `ZipFile$Source.initCEN` under `AppClassLoader`, which is the JVM opening
+the jar and not request work at all.
+
+The same asymmetry shows in the per-request counters at 256 KB: with the harness fixed, the io_uring
+**server** still allocates 781 B/req against epoll's 124. The mechanism was inferred from a throughput
+sweep; this is the same conclusion arrived at from an unrelated instrument.
+
+## Memory churn is a concurrency effect, not a size effect
+
+**[SOLID]** This is a correction to how I framed the memory finding, and it is a sharper result than
+what it replaces.
+
+Warming netty's arenas before the run is worth **14 points of ratio at 64 KB with 2000 connections**
+and **exactly nothing at 256 KB with 500 connections**, where the identical reduction in churn
+(server heap 781 down to 154 B/req) buys back no throughput whatsoever.
+
+So pooled-memory churn is a real, measurable contributor with a measured size, and it scales with
+**concurrency**, not with message size. I originally presented it as the size effect. It is not.
+
 ## The six hypotheses that were wrong, in order
 
 This list is the actual article. Every one was plausible, most were expensive to hold, and each was
@@ -299,6 +344,20 @@ killed by a cheap measurement.
    `getWriteSpinCount()` at all (verified: the setters exist on every config class, nothing consumes
    them). Partial writes scale with message size, so it predicted the widening curve precisely. And
    `SO_SNDBUF` at 64K and 1M moved nothing. Rejected.
+
+## A trap I nearly walked into while fixing the harness
+
+**[SOLID]** Worth an article beat of its own. Forcing epoll onto a `FixedRecvByteBufAllocator`, which
+is the tax completion-based I/O pays structurally, costs **epoll 34% at 64 KB and 28% at 256 KB**
+while io_uring is indifferent to it.
+
+That means a "both transports configured identically" comparison using a fixed receive buffer is not
+fair at all: it is epoll being crippled into io_uring's constraint, and it would have shown io_uring
+closing most of the gap for entirely the wrong reason. Any cell in the `--prealloc` tables reporting
+84.6% or 78.3% is this artifact and is labelled as such.
+
+The general lesson: making two things "the same" can mean removing an advantage one of them
+legitimately has.
 
 ## Two more claims I had to withdraw
 
