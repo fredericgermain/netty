@@ -19,6 +19,51 @@ you need to re-run first.
 Test host throughout is `thor`: 4 physical cores, 8 logical (SMT), Ubuntu, kernel 6.8.0-57-generic,
 62 GB. Containers are `eclipse-temurin:21-jdk-alpine` unless noted.
 
+## The test host is a laptop CPU with frequency scaling left on, and it throttles
+
+**[SOLID]** This belongs near the top rather than in a footnote, because it bounds how precisely any
+number here can be read.
+
+- **CPU is an Intel i5-10300H**, an H-series **mobile** part: 4 physical cores, 8 threads, 2.5 GHz
+  base.
+- **Governor is `powersave`** on all 8 CPUs, driver `intel_pstate`, frequency range **800 MHz to
+  4500 MHz**, `min_perf_pct` 17. That is a 5.6x span the governor is free to move within, according
+  to load, during a measurement.
+- **Turbo is enabled** (`no_turbo=0`), so the ceiling also depends on how many cores are busy and on
+  temperature.
+- **The machine has thermally throttled, and asymmetrically across cores.** Cumulative
+  `core_throttle_count` since boot: core0 **0**, core1 **9,113**, core2 **0**, core3 **22,805**.
+
+That last point interacts badly with the pinning used for the corrected runs. Server was pinned to
+physical cores 0 and 1, client to cores 2 and 3. **The client's cores are the ones that throttle**,
+and core3 has throttled roughly 2.5x more often than core1. The two sides of every comparison are not
+sitting on thermally equivalent hardware.
+
+**[UNCERTAIN]** Those counts are cumulative over 10+ days of uptime and are not attributed to our
+runs specifically. What they establish is that this host throttles under load and does so unevenly,
+not that any particular cell was throttled. Per-round throttle deltas were never recorded. The one
+run that did log temperature (`tlswarm`) saw 67-88 C and frequencies between 3.20 and 3.60 GHz across
+rounds, so the scaling was demonstrably live during at least that measurement.
+
+**There is a specific mechanism by which this could bias the transport comparison rather than merely
+add noise.** io_uring marks threads waiting on completions as `in_iowait`, and `intel_pstate` uses
+iowait as an input to its **iowait boost**. So the two transports can drive the governor differently
+and end up running at different clock speeds. That would be a systematic effect on the very axis
+under test, and interleaving rounds cannot average it away. Untested here, stated as a risk rather
+than a finding.
+
+**The fix, not yet applied because it needs root:**
+
+    sudo cpupower frequency-set -g performance
+    # or: echo performance | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
+
+**Every number in this document was taken under `powersave` with turbo enabled.** The rankings
+reproduce consistently across interleaved rounds and are unlikely to invert, but the magnitudes carry
+an uncertainty the quoted spreads do not capture: those spreads measure round-to-round variation
+under a governor that was free to move, not the variation of a pinned-clock machine. Anything
+republished outside this branch should be re-measured under the `performance` governor, with
+per-round frequency, temperature and throttle-count deltas recorded.
+
 ---
 
 # Article 1: post-quantum crypto is already in your TLS benchmark
