@@ -645,6 +645,90 @@ then resolve normally. Small, genuinely useful, and I have not seen it written u
 
 ---
 
+# Article 3b: netty's QUIC has a bandwidth ceiling, not a per-message cost
+
+**[SOLID]** Five interleaved rounds, 500 connections, one stream per connection, 10 s,
+`eclipse-temurin:21-jdk` (glibc), whole-core pinning, clock capped at `max_perf_pct=62`. Zero UDP
+drops, zero throttle deltas, tight spreads in every cell. QUIC is netty's `codec-native-quic`; the
+comparison is against TCP+**TLS**, never plaintext, because QUIC always encrypts.
+
+| payload | QUIC | TCP+TLS | ratio |
+|---|---|---|---|
+| 1 KB | 53,930 [52,462-54,501] | 105,539 [103,799-106,442] | **0.51x** |
+| 8 KB | 5,159 [4,955-5,517] | 73,582 [72,426-75,776] | **0.070x** |
+| 64 KB | 660 [512-689] | 17,440 [17,228-17,638] | **0.038x** |
+| handshakes/s | ~584 | ~1,215 | **0.48x** |
+
+The ratio column invites the wrong reading. Convert to bandwidth and the shape appears:
+
+| payload | QUIC | TCP+TLS |
+|---|---|---|
+| 1 KB | 53 MB/s | 103 MB/s |
+| 8 KB | 41 MB/s | 574 MB/s |
+| 64 KB | 42 MB/s | 1,090 MB/s |
+
+**QUIC delivers roughly the same bandwidth whatever the message size, while TCP's rises more than
+tenfold.** That is a ceiling, not a per-message overhead, and a ceiling is a much more specific thing
+to go looking for than "QUIC is 26x slower".
+
+**[UNCERTAIN] What the ceiling is has not been established.** Three candidates, none tested:
+
+- **No UDP segmentation offload.** `UDP_SEGMENT` (GSO) and `UDP_GRO` are what make userspace QUIC
+  stacks competitive, because without them every ~1400-byte datagram costs a separate syscall and a
+  separate trip through the stack. Whether netty's QUIC codec uses them was never checked, and this
+  is the first thing to look at.
+- **A 2048-byte datagram receive buffer.** The harness reports `udpRecvSize=2048`, so a 64 KB message
+  is roughly 47 receive operations. This is the same reads-per-message shape that the TCP work
+  converged on, which is suggestive rather than conclusive.
+- **Userspace congestion control and pacing**, which are inherent to QUIC and are precisely what a
+  loopback benchmark exercises hardest, since there is no real loss to recover from and pacing has no
+  bandwidth-delay product to fill.
+
+**[UNCERTAIN] This does not separate netty's QUIC from QUIC as such.** A single implementation on one
+host with one tuning is not evidence about the protocol. It is also **untuned in a way the TCP path
+no longer is**: QUIC allocates 875 B/req against the pre-allocated TCP path's 5-23 B/req, and none of
+the pre-allocation work was applied to it. Any comparison published from this must say so.
+
+**What it does establish**, and this is the reason the sweep was worth running: **QUIC does not merely
+share the size-dependent decay seen in netty's io_uring and in the C io_uring echo server, it shows a
+far more extreme version of it.** Three independent stacks on this host degrade as message size rises
+relative to their per-read unit. That is weak evidence for the decay being a property of this kernel
+and loopback path rather than of any one transport, and it is the strongest reason yet to repeat the
+whole io_uring comparison on a second machine before publishing.
+
+## The measurement that had to be thrown away first, and why it matters
+
+**[WITHDRAWN]** The first attempt at this sweep produced 0.54x / 0.074x / 0.033x, which is within a
+few percent of the numbers above. **Every cell was still disqualified**, and publishing it would have
+been wrong even though it was nearly right.
+
+Two independent disqualifiers:
+
+- **Thermal throttling, which I caused.** Setting the governor to `performance` to remove frequency
+  variance pushed this laptop CPU to 95-100 C and the kernel throttled: up to 533 events in a single
+  cell, against `0/0/0/0` in every run under `powersave`. Removing one uncontrolled variable
+  introduced another.
+- **125,137 UDP receive-buffer errors in the 64 KB QUIC cell.** 500 connections at 64 KB is about
+  32 MB in flight against an 8 MB socket buffer. QUIC retransmits the loss, so it presents as "QUIC is
+  slow" rather than as an error. The harness caught it only because it records drop deltas per cell.
+
+**The fix was neither governor.** Capping the clock instead:
+
+| | `powersave` | `performance` | **capped, `max_perf_pct=62`** |
+|---|---|---|---|
+| mean MHz | 2,707 | 3,418 | **2,593** |
+| max temp | not recorded | 73-100 C | **62 C** |
+| throttle events | 0 | up to 533 | **0** |
+| smoke req/s | 56,989 | 77,480 | 56,885 |
+
+A capped clock gives `powersave`'s throughput with a stable frequency and no throttling. On a mobile
+CPU that is the configuration to benchmark under, and neither stock governor is it.
+
+Worth keeping for its own sake: the arithmetic came out nearly identical either way, so the
+disqualified run and the clean run agree. That is luck, not method. A contended cell elsewhere on this
+branch inverted a transport ordering outright, so "the number looked plausible" is not evidence that a
+disqualified cell was fine.
+
 # Article 4: the traps that returned a plausible number instead of an error
 
 Every one of these was hit for real in this work. That is the thesis: the failure mode of
