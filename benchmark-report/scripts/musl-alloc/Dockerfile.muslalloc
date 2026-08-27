@@ -1,0 +1,13 @@
+# Alpine JDK with musl debug symbols plus two alternative allocators.
+#
+# Tests one prediction: if quiche's native allocation through musl's mallocng is what drives the
+# 12x context-switch excess on QUIC, then replacing the allocator via LD_PRELOAD must collapse it.
+# mallocng uses a shared lock (__lock / __unlock are the observed futex callers); jemalloc and
+# mimalloc both use per-thread caches and should barely contend.
+#
+# Two allocators rather than one, because a single result could be a property of that allocator
+# rather than of mallocng.
+FROM alpine-jdk-musldbg
+RUN apk add --no-cache jemalloc mimalloc2
+RUN test -e /usr/lib/libjemalloc.so.2 && test -e /usr/lib/libmimalloc.so.2 \
+    || (echo "expected allocator libraries missing" && ls -l /usr/lib/lib*malloc* && false)

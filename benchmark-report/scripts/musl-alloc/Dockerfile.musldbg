@@ -1,0 +1,18 @@
+# Alpine JDK with musl debug symbols, so a profiler can see inside libc.
+#
+# Without musl-dbg the whole C library collapses to a single frame, /lib/ld-musl-x86_64.so.1, which
+# is where 0.0069 samples/req of the musl QUIC deficit currently sits: the largest single cost in
+# the profile and completely opaque. musl links everything (allocator, string/memory routines,
+# pthread, the dynamic linker) into that one image, so unlike glibc there is nothing to attribute
+# without symbols.
+#
+# musl-dbg installs a separate .debug file next to the library. perf resolves those via build-id;
+# async-profiler is less reliable with split debuginfo, which is why perf is used for the native
+# side of this comparison.
+FROM eclipse-temurin:21-jdk-alpine
+
+RUN apk add --no-cache musl-dbg
+
+# Sanity check at build time rather than discovering an empty symbol table mid-measurement.
+RUN test -e /usr/lib/debug/lib/ld-musl-x86_64.so.1.debug \
+    || (echo "musl-dbg did not install the expected debug file" && ls -R /usr/lib/debug && false)
