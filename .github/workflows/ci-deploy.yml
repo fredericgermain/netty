@@ -25,7 +25,11 @@ on:
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
-permissions: read-all
+# packages:write is needed only by deploy-staged-snapshots-github-packages, which authenticates to
+# GitHub Packages with the built-in GITHUB_TOKEN rather than with a repository secret.
+permissions:
+  contents: read
+  packages: write
 
 env:
   MAVEN_OPTS: -Xmx6g -Dhttp.keepAlive=false -Dmaven.wagon.http.pool=false -Dmaven.wagon.http.retryhandler.count=5 -Dmaven.wagon.httpconnectionManager.ttlSeconds=240
@@ -206,10 +210,13 @@ jobs:
           if-no-files-found: error
           include-hidden-files: true
 
-  deploy-staged-snapshots:
+  deploy-staged-snapshots-maven-central:
     runs-on: ubuntu-22.04
     # Wait until we have staged everything
     needs: [ stage-snapshot-linux, stage-snapshot-windows-x86_64, stage-snapshot-macos ]
+    # Defaults to on, so an unset variable leaves upstream's behaviour exactly as it was. A fork
+    # with no Maven Central credentials sets this to false rather than watching the job fail.
+    if: vars.DEPLOY_MAVEN_CENTRAL != 'false'
     steps:
       # Pinned to v4.3.1
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
@@ -305,3 +312,110 @@ jobs:
 
       - name: Deploy local staged artifacts
         run: ./mvnw -B -ntp --file pom.xml org.sonatype.plugins:nexus-staging-maven-plugin:deploy-staged -DaltStagingDirectory=$HOME/local-staging -DserverId=central-portal-snapshots
+
+  deploy-staged-snapshots-github-packages:
+    runs-on: ubuntu-22.04
+    # Wait until we have staged everything
+    needs: [ stage-snapshot-linux, stage-snapshot-windows-x86_64, stage-snapshot-macos ]
+    # Off unless a repository explicitly opts in, so upstream never publishes here by accident.
+    # A fork enables it with:  gh variable set DEPLOY_GITHUB_PACKAGES --body true
+    if: vars.DEPLOY_GITHUB_PACKAGES == 'true'
+    steps:
+      # Pinned to v4.3.1
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      # Pinned to v4.8.0
+      - name: Set up JDK 11
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9
+        with:
+          distribution: 'zulu'
+          java-version: '11'
+
+      # Cache .m2/repository
+      # Pinned to v4.3.0
+      - name: Cache local Maven repository
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
+        continue-on-error: true
+        with:
+          path: ~/.m2/repository
+          key: cache-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            cache-maven-${{ hashFiles('**/pom.xml') }}
+            cache-maven-
+
+      # Pinned to v3.0.0
+      - uses: s4u/maven-settings-action@7802f6aec16c9098b4798ad1f1d8ac75198194bd
+        with:
+          servers: |
+            [{
+              "id": "github",
+              "username": "${{ github.actor }}",
+              "password": "${{ secrets.GITHUB_TOKEN }}"
+            }]
+
+      # Hardcode the staging artifacts that need to be downloaded.
+      # These must match the matrix setups. There is currently no way to pull this out of the config.
+      # Pinned to v4.3.0
+      - name: Download windows_x86_64 staging directory
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: windows-x86_64-local-staging
+          path: ~/windows-x86_64-local-staging
+
+      # Pinned to v4.3.0
+      - name: Download macos-aarch64-java11 staging directory
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: macos-aarch64-java11-local-staging
+          path: ~/macos-aarch64-java11-local-staging
+
+      # Pinned to v4.3.0
+      - name: Download macos-x86_64-java11 staging directory
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: macos-x86_64-java11-local-staging
+          path: ~/macos-x86_64-java11-local-staging
+
+      # Pinned to v4.3.0
+      - name: Download linux-aarch64 staging directory
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: linux-aarch64-local-staging
+          path: ~/linux-aarch64-local-staging
+
+      # Pinned to v4.3.0
+      - name: Download linux-riscv64 staging directory
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: linux-riscv64-local-staging
+          path: ~/linux-riscv64-local-staging
+
+      # Pinned to v4.3.0
+      - name: Download linux-x86_64-java11 staging directory
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: linux-x86_64-java11-local-staging
+          path: ~/linux-x86_64-java11-local-staging
+
+      - name: Copy previous build artifacts to local maven repository
+        run: bash ./.github/scripts/local_staging_install_snapshot.sh ~/.m2/repository ~/windows-x86_64-local-staging ~/macos-aarch64-java11-local-staging ~/macos-x86_64-java11-local-staging ~/linux-aarch64-local-staging ~/linux-riscv64-local-staging ~/linux-x86_64-java11-local-staging
+
+      - name: Generate netty-codec-http3 and deploy to local staging.
+        run: |
+          mkdir -p ~/codec-http3-local-staging
+          ./mvnw -B --file pom.xml -Pnative-dependencies -pl all clean package org.sonatype.plugins:nexus-staging-maven-plugin:deploy -DskipRemoteStaging=true -DaltStagingDirectory=$HOME/codec-http3-local-staging -DskipTests=true
+
+      - name: Generate netty-all and deploy to local staging.
+        run: |
+          mkdir -p ~/all-local-staging
+          ./mvnw -B --file pom.xml -Pnative-dependencies -pl all clean package org.sonatype.plugins:nexus-staging-maven-plugin:deploy -DskipRemoteStaging=true -DaltStagingDirectory=$HOME/all-local-staging -DskipTests=true
+
+      - name: Merge staging repositories
+        run: bash ./.github/scripts/local_staging_merge_snapshot.sh ~/gh-local-staging ~/windows-x86_64-local-staging ~/macos-aarch64-java11-local-staging ~/macos-x86_64-java11-local-staging ~/linux-aarch64-local-staging ~/linux-riscv64-local-staging ~/linux-x86_64-java11-local-staging ~/codec-http3-local-staging ~/all-local-staging
+
+      - name: Retarget staged artifacts at GitHub Packages
+        run: bash ./.github/scripts/retarget_staging_index.sh ~/gh-local-staging github https://maven.pkg.github.com/${{ github.repository }}
+
+      # No -DserverId here: the retarget step has already written "github" into the .index.
+      - name: Deploy local staged artifacts
+        run: ./mvnw -B -ntp --file pom.xml org.sonatype.plugins:nexus-staging-maven-plugin:deploy-staged -DaltStagingDirectory=$HOME/gh-local-staging
