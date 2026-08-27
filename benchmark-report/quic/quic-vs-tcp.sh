@@ -30,6 +30,9 @@ PAYLOADS="${PAYLOADS:-1024 8192 65536}"
 # runs are reported. TCP ignores this flag, so the two cells stay comparable.
 UDP_RCVBUF="${UDP_RCVBUF:-}"
 
+# Wait rather than refuse: run-all.sh launches these back to back on a shared host, and a sweep
+# that exited because a neighbour happened to be mid-cell would simply be lost.
+await_quiet || { echo "HOST NEVER WENT QUIET" >&2; exit 1; }
 require_idle || exit 1
 
 echo "# q1 quic-vs-tcp+tls  rounds=$ROUNDS duration=${DUR}s connections=$CONNS threads=$THREADS udpRcvbuf=${UDP_RCVBUF:-default4MB} payloads=$PAYLOADS"

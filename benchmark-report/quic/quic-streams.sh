@@ -22,6 +22,9 @@ PAYLOAD="${3:-1024}"
 THREADS=4
 LOOPS=500      # request loops, held equal across both cells
 
+# Wait rather than refuse: run-all.sh launches these back to back on a shared host, and a sweep
+# that exited because a neighbour happened to be mid-cell would simply be lost.
+await_quiet || { echo "HOST NEVER WENT QUIET" >&2; exit 1; }
 require_idle || exit 1
 
 echo "# q3 quic streams-per-connection  rounds=$ROUNDS duration=${DUR}s loops=$LOOPS payload=$PAYLOAD"

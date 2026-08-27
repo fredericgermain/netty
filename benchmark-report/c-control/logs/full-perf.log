@@ -1,0 +1,187 @@
+[19:57:00] phase=big rounds=5 duration=12s lengths=[1024 8192 65536] conns=[50 300]
+[19:57:00] governor=performance throttle_at_start=[0 9117 0 22805]
+[19:57:01] idle check: us=21 sy=6 id=72
+[20:00:08] host quiet, starting
+[20:00:08] === round 1 ===
+[20:00:22]   r1 epoll len=1024 c=50 -> 165200 req/s thr=0/0/0/0 mhz=2855/2862 
+[20:00:36]   r1 iouring len=1024 c=50 -> 179304 req/s thr=0/0/0/0 mhz=2880/2838 
+[20:00:51]   r1 epoll len=1024 c=300 -> 154598 req/s thr=0/0/0/0 mhz=2709/2834 
+[20:01:05]   r1 iouring len=1024 c=300 -> 163344 req/s thr=0/0/0/0 mhz=2771/2853 
+[20:01:19]   r1 epoll len=8192 c=50 -> 135116 req/s thr=0/0/0/0 mhz=2764/2668 
+[20:01:34]   r1 iouring len=8192 c=50 -> 135013 req/s thr=0/0/0/0 mhz=2860/2856 
+[20:01:48]   r1 epoll len=8192 c=300 -> 112825 req/s thr=0/0/0/0 mhz=2777/2834 
+[20:02:03]   r1 iouring len=8192 c=300 -> 110353 req/s thr=0/0/0/0 mhz=2841/2904 
+[20:02:17]   r1 epoll len=65536 c=50 -> 40175 req/s thr=0/0/0/0 mhz=2804/2858 
+[20:02:32]   r1 iouring len=65536 c=50 -> 35240 req/s thr=0/0/0/0 mhz=2770/2865 
+[20:02:46]   r1 epoll len=65536 c=300 -> 35683 req/s thr=0/0/0/0 mhz=2774/2844 
+[20:03:01]   r1 iouring len=65536 c=300 -> 31444 req/s thr=0/0/0/0 mhz=2818/2868 
+[20:03:04] idle after round 1: id=100
+[20:03:04] === round 2 ===
+[20:03:17]   r2 iouring len=1024 c=50 -> 178007 req/s thr=0/0/0/0 mhz=2842/2871 
+[20:03:32]   r2 epoll len=1024 c=50 -> 163761 req/s thr=0/0/0/0 mhz=2826/2828 
+[20:03:46]   r2 iouring len=1024 c=300 -> 160316 req/s thr=0/0/0/0 mhz=2846/2773 
+[20:04:01]   r2 epoll len=1024 c=300 -> 156209 req/s thr=0/0/0/0 mhz=2797/2854 
+[20:04:15]   r2 iouring len=8192 c=50 -> 133978 req/s thr=0/0/0/0 mhz=2858/2864 
+[20:04:29]   r2 epoll len=8192 c=50 -> 133339 req/s thr=0/0/0/0 mhz=2554/2806 
+[20:04:44]   r2 iouring len=8192 c=300 -> 109844 req/s thr=0/0/0/0 mhz=2858/2836 
+[20:04:58]   r2 epoll len=8192 c=300 -> 111857 req/s thr=0/0/0/0 mhz=2852/2915 
+[20:05:13]   r2 iouring len=65536 c=50 -> 35414 req/s thr=0/0/0/0 mhz=2829/2903 
+[20:05:27]   r2 epoll len=65536 c=50 -> 39861 req/s thr=0/0/0/0 mhz=2786/2905 
+[20:05:42]   r2 iouring len=65536 c=300 -> 30855 req/s thr=0/0/0/0 mhz=2629/2889 
+[20:05:56]   r2 epoll len=65536 c=300 -> 36433 req/s thr=0/0/0/0 mhz=2704/2871 
+[20:05:59] idle after round 2: id=100
+[20:05:59] === round 3 ===
+[20:06:13]   r3 epoll len=1024 c=50 -> 167743 req/s thr=0/0/0/0 mhz=2770/2834 
+[20:06:27]   r3 iouring len=1024 c=50 -> 178031 req/s thr=0/0/0/0 mhz=2839/2841 
+[20:06:42]   r3 epoll len=1024 c=300 -> 157452 req/s thr=0/0/0/0 mhz=2852/2819 
+[20:06:56]   r3 iouring len=1024 c=300 -> 164647 req/s thr=0/0/0/0 mhz=2914/2842 
+[20:07:11]   r3 epoll len=8192 c=50 -> 133894 req/s thr=0/0/0/0 mhz=2865/2819 
+[20:07:25]   r3 iouring len=8192 c=50 -> 134990 req/s thr=0/0/0/0 mhz=2867/2838 
+[20:07:39]   r3 epoll len=8192 c=300 -> 112806 req/s thr=0/0/0/0 mhz=2834/2845 
+[20:07:54]   r3 iouring len=8192 c=300 -> 108980 req/s thr=0/0/0/0 mhz=2833/2847 
+[20:08:08]   r3 epoll len=65536 c=50 -> 40236 req/s thr=0/0/0/0 mhz=2774/2878 
+[20:08:23]   r3 iouring len=65536 c=50 -> 35356 req/s thr=0/0/0/0 mhz=2861/2867 
+[20:08:37]   r3 epoll len=65536 c=300 -> 36116 req/s thr=0/0/0/0 mhz=2774/2912 
+[20:08:52]   r3 iouring len=65536 c=300 -> 30956 req/s thr=0/0/0/0 mhz=2815/2870 
+[20:08:55] idle after round 3: id=99
+[20:08:55] === round 4 ===
+[20:09:08]   r4 iouring len=1024 c=50 -> 176882 req/s thr=0/0/0/0 mhz=2851/2836 
+[20:09:23]   r4 epoll len=1024 c=50 -> 166068 req/s thr=0/0/0/0 mhz=2830/2807 
+[20:09:37]   r4 iouring len=1024 c=300 -> 163464 req/s thr=0/0/0/0 mhz=2755/2831 
+[20:09:52]   r4 epoll len=1024 c=300 -> 155527 req/s thr=0/0/0/0 mhz=2769/2845 
+[20:10:06]   r4 iouring len=8192 c=50 -> 133781 req/s thr=0/0/0/0 mhz=2806/2869 
+[20:10:20]   r4 epoll len=8192 c=50 -> 134163 req/s thr=0/0/0/0 mhz=2847/2854 
+[20:10:35]   r4 iouring len=8192 c=300 -> 110782 req/s thr=0/0/0/0 mhz=2919/2870 
+[20:10:49]   r4 epoll len=8192 c=300 -> 111365 req/s thr=0/0/0/0 mhz=2872/2857 
+[20:11:04]   r4 iouring len=65536 c=50 -> 35810 req/s thr=0/0/0/0 mhz=2879/2873 
+[20:11:18]   r4 epoll len=65536 c=50 -> 40319 req/s thr=0/0/0/0 mhz=2849/2825 
+[20:11:33]   r4 iouring len=65536 c=300 -> 31403 req/s thr=0/0/0/0 mhz=2814/2903 
+[20:11:47]   r4 epoll len=65536 c=300 -> 35939 req/s thr=0/0/0/0 mhz=2725/2873 
+[20:11:50] idle after round 4: id=100
+[20:11:50] === round 5 ===
+[20:12:04]   r5 epoll len=1024 c=50 -> 161968 req/s thr=0/0/0/0 mhz=2856/2819 
+[20:12:18]   r5 iouring len=1024 c=50 -> 176298 req/s thr=0/0/0/0 mhz=2856/2834 
+[20:12:33]   r5 epoll len=1024 c=300 -> 156374 req/s thr=0/0/0/0 mhz=2856/2841 
+[20:12:47]   r5 iouring len=1024 c=300 -> 160620 req/s thr=0/0/0/0 mhz=2837/2852 
+[20:13:02]   r5 epoll len=8192 c=50 -> 134871 req/s thr=0/0/0/0 mhz=2861/2834 
+[20:13:16]   r5 iouring len=8192 c=50 -> 136972 req/s thr=0/0/0/0 mhz=2907/2853 
+[20:13:30]   r5 epoll len=8192 c=300 -> 111908 req/s thr=0/0/0/0 mhz=2905/2891 
+[20:13:45]   r5 iouring len=8192 c=300 -> 110151 req/s thr=0/0/0/0 mhz=2850/2840 
+[20:13:59]   r5 epoll len=65536 c=50 -> 40487 req/s thr=0/0/0/0 mhz=2799/2776 
+[20:14:14]   r5 iouring len=65536 c=50 -> 35260 req/s thr=0/0/0/0 mhz=2620/2902 
+[20:14:28]   r5 epoll len=65536 c=300 -> 36308 req/s thr=0/0/0/0 mhz=2709/2887 
+[20:14:43]   r5 iouring len=65536 c=300 -> 31650 req/s thr=0/0/0/0 mhz=2808/2858 
+[20:14:46] idle after round 5: id=99
+[20:14:46] done, results in /home/fred/c-control/results-big.tsv
+[20:14:46] netty phase=t4 threads=4 rounds=5 warmup=15s measure=12s
+[20:14:46] lengths=[1024 8192 65536] conns=[50 300]
+[20:14:46] governor=performance throttle_at_start=[0 9121 0 22813]
+[20:14:47] idle check: us=0 sy=0 id=99
+[20:14:48] host quiet, starting
+[20:14:48] === round 1 ===
+[20:15:17]   r1 epoll len=1024 c=50 -> 234590 req/s thr=0/0/0/0 mhz=2815/2803 
+[20:15:48]   r1 iouring len=1024 c=50 -> 237994 req/s thr=0/0/0/0 mhz=2818/2808 
+[20:16:20]   r1 epoll len=1024 c=300 -> 223450 req/s thr=0/0/0/0 mhz=2833/2818 
+[20:16:51]   r1 iouring len=1024 c=300 -> 224106 req/s thr=0/0/0/0 mhz=2820/2801 
+[20:17:22]   r1 epoll len=8192 c=50 -> 193138 req/s thr=0/0/0/0 mhz=2817/2826 
+[20:17:53]   r1 iouring len=8192 c=50 -> 200263 req/s thr=0/0/0/0 mhz=2819/2813 
+[20:18:25]   r1 epoll len=8192 c=300 -> 172052 req/s thr=0/0/0/0 mhz=2805/2820 
+[20:18:56]   r1 iouring len=8192 c=300 -> 164806 req/s thr=0/0/0/0 mhz=2802/2805 
+[20:19:27]   r1 epoll len=65536 c=50 -> 60577 req/s thr=0/0/0/0 mhz=2817/2828 
+[20:20:07]   r1 iouring len=65536 c=50 -> 58164 req/s thr=0/0/0/0 mhz=2842/2540 
+[20:20:39]   r1 epoll len=65536 c=300 -> 63116 req/s thr=0/0/0/0 mhz=2814/2815 
+[20:21:10]   r1 iouring len=65536 c=300 -> 55354 req/s thr=0/0/0/0 mhz=2805/2808 
+[20:21:14] idle after round 1: id=99
+[20:21:14] === round 2 ===
+[20:21:43]   r2 iouring len=1024 c=50 -> 240446 req/s thr=0/0/0/0 mhz=2816/2809 
+[20:22:14]   r2 epoll len=1024 c=50 -> 232000 req/s thr=0/0/0/0 mhz=2818/2844 
+[20:22:46]   r2 iouring len=1024 c=300 -> 225312 req/s thr=0/0/0/0 mhz=2804/2801 
+[20:23:17]   r2 epoll len=1024 c=300 -> 223897 req/s thr=0/0/0/0 mhz=2831/2809 
+[20:23:48]   r2 iouring len=8192 c=50 -> 197948 req/s thr=0/0/0/0 mhz=2830/2803 
+[20:24:19]   r2 epoll len=8192 c=50 -> 191485 req/s thr=0/0/0/0 mhz=2813/2803 
+[20:24:51]   r2 iouring len=8192 c=300 -> 163893 req/s thr=0/0/0/0 mhz=2814/2817 
+[20:25:22]   r2 epoll len=8192 c=300 -> 175143 req/s thr=0/0/0/0 mhz=2808/2831 
+[20:26:11]   r2 iouring len=65536 c=50 -> 58338 req/s thr=0/0/0/0 mhz=2951/2631 
+[20:26:43]   r2 epoll len=65536 c=50 -> 60603 req/s thr=0/0/0/0 mhz=2818/2815 
+[20:27:14]   r2 iouring len=65536 c=300 -> 55251 req/s thr=0/0/0/0 mhz=2804/2801 
+[20:27:45]   r2 epoll len=65536 c=300 -> 63869 req/s thr=0/0/0/0 mhz=2836/2821 
+[20:27:49] idle after round 2: id=100
+[20:27:49] === round 3 ===
+[20:28:19]   r3 epoll len=1024 c=50 -> 236858 req/s thr=0/0/0/0 mhz=2812/2815 
+[20:28:50]   r3 iouring len=1024 c=50 -> 239218 req/s thr=0/0/0/0 mhz=2804/2804 
+[20:29:21]   r3 epoll len=1024 c=300 -> 225684 req/s thr=0/0/0/0 mhz=2805/2839 
+[20:29:52]   r3 iouring len=1024 c=300 -> 220301 req/s thr=0/0/0/0 mhz=2809/2807 
+[20:30:24]   r3 epoll len=8192 c=50 -> 193547 req/s thr=0/0/0/0 mhz=2816/2830 
+[20:30:55]   r3 iouring len=8192 c=50 -> 199651 req/s thr=0/0/0/0 mhz=2807/2810 
+[20:31:26]   r3 epoll len=8192 c=300 -> 172352 req/s thr=0/0/0/0 mhz=2830/2824 
+[20:31:57]   r3 iouring len=8192 c=300 -> 165286 req/s thr=0/0/0/0 mhz=2807/2801 
+[20:32:29]   r3 epoll len=65536 c=50 -> 60449 req/s thr=0/0/0/0 mhz=2805/2802 
+[20:33:07]   r3 iouring len=65536 c=50 -> 58361 req/s thr=0/0/0/0 mhz=2755/2834 
+[20:33:38]   r3 epoll len=65536 c=300 -> 63302 req/s thr=0/0/0/0 mhz=2852/2806 
+[20:34:10]   r3 iouring len=65536 c=300 -> 54459 req/s thr=0/0/0/0 mhz=2808/2804 
+[20:34:14] idle after round 3: id=99
+[20:34:14] === round 4 ===
+[20:34:43]   r4 iouring len=1024 c=50 -> 236888 req/s thr=0/0/0/0 mhz=2814/2811 
+[20:35:14]   r4 epoll len=1024 c=50 -> 228493 req/s thr=0/0/0/0 mhz=2810/2802 
+[20:35:45]   r4 iouring len=1024 c=300 -> 198530 req/s thr=0/0/0/0 mhz=2519/2524 
+[20:36:18]   r4 epoll len=1024 c=300 -> 144179 req/s thr=0/0/0/0 mhz=1804/1807 
+[20:36:50]   r4 iouring len=8192 c=50 -> 125816 req/s thr=0/0/0/0 mhz=1803/1802 
+[20:37:22]   r4 epoll len=8192 c=50 -> 120546 req/s thr=0/0/0/0 mhz=1810/1812 
+[20:37:54]   r4 iouring len=8192 c=300 -> 113000 req/s thr=0/0/0/0 mhz=1805/1800 
+[20:38:26]   r4 epoll len=8192 c=300 -> 114737 req/s thr=0/0/0/0 mhz=1804/1800 
+[20:39:08]   r4 iouring len=65536 c=50 -> 41546 req/s thr=0/0/0/0 mhz=1747/1684 
+[20:39:40]   r4 epoll len=65536 c=50 -> 42618 req/s thr=0/0/0/0 mhz=1801/1806 
+[20:40:13]   r4 iouring len=65536 c=300 -> 39734 req/s thr=0/0/0/0 mhz=1803/1799 
+[20:40:45]   r4 epoll len=65536 c=300 -> 43067 req/s thr=0/0/0/0 mhz=1806/1805 
+[20:40:49] idle after round 4: id=100
+[20:40:49] === round 5 ===
+[20:41:19]   r5 epoll len=1024 c=50 -> 146404 req/s thr=0/0/0/0 mhz=1805/1805 
+[20:41:51]   r5 iouring len=1024 c=50 -> 152403 req/s thr=0/0/0/0 mhz=1800/1800 
+[20:42:23]   r5 epoll len=1024 c=300 -> 144685 req/s thr=0/0/0/0 mhz=1800/1807 
+[20:42:55]   r5 iouring len=1024 c=300 -> 146298 req/s thr=0/0/0/0 mhz=1801/1800 
+[20:43:28]   r5 epoll len=8192 c=50 -> 118803 req/s thr=0/0/0/0 mhz=1801/1804 
+[20:44:00]   r5 iouring len=8192 c=50 -> 122303 req/s thr=0/0/0/0 mhz=1800/1801 
+[20:44:32]   r5 epoll len=8192 c=300 -> 115242 req/s thr=0/0/0/0 mhz=1815/1818 
+[20:45:04]   r5 iouring len=8192 c=300 -> 111912 req/s thr=0/0/0/0 mhz=1802/1800 
+[20:45:36]   r5 epoll len=65536 c=50 -> 42366 req/s thr=0/0/0/0 mhz=1809/1811 
+[20:46:09]   r5 iouring len=65536 c=50 -> 41218 req/s thr=0/0/0/0 mhz=1756/1738 
+[20:46:41]   r5 epoll len=65536 c=300 -> 43241 req/s thr=0/0/0/0 mhz=1805/1802 
+[20:47:13]   r5 iouring len=65536 c=300 -> 39150 req/s thr=0/0/0/0 mhz=1802/1801 
+[20:47:18] idle after round 5: id=99
+[20:47:18] done, results in /home/fred/c-control/results-netty-t4.tsv
+[20:47:18] netty phase=t1 threads=1 rounds=5 warmup=15s measure=12s
+[20:47:18] lengths=[1024 65536] conns=[50]
+[20:47:18] governor=performance throttle_at_start=[0 9121 0 22813]
+[20:47:19] idle check: us=0 sy=0 id=99
+[20:47:20] host quiet, starting
+[20:47:20] === round 1 ===
+[20:47:50]   r1 epoll len=1024 c=50 -> 79502 req/s thr=0/0/0/0 mhz=1818/1820 
+[20:48:22]   r1 iouring len=1024 c=50 -> 88680 req/s thr=0/0/0/0 mhz=1731/1805 
+[20:48:54]   r1 epoll len=65536 c=50 -> 20744 req/s thr=0/0/0/0 mhz=1812/1829 
+[20:49:26]   r1 iouring len=65536 c=50 -> 23782 req/s thr=0/0/0/0 mhz=1806/1809 
+[20:49:30] idle after round 1: id=99
+[20:49:30] === round 2 ===
+[20:50:00]   r2 iouring len=1024 c=50 -> 89419 req/s thr=0/0/0/0 mhz=1801/1803 
+[20:50:32]   r2 epoll len=1024 c=50 -> 79873 req/s thr=0/0/0/0 mhz=1805/1842 
+[20:51:04]   r2 iouring len=65536 c=50 -> 23361 req/s thr=0/0/0/0 mhz=1809/1816 
+[20:51:37]   r2 epoll len=65536 c=50 -> 21040 req/s thr=0/0/0/0 mhz=1775/1845 
+[20:51:41] idle after round 2: id=99
+[20:51:41] === round 3 ===
+[20:52:11]   r3 epoll len=1024 c=50 -> 78690 req/s thr=0/0/0/0 mhz=1815/1812 
+[20:52:43]   r3 iouring len=1024 c=50 -> 87145 req/s thr=0/0/0/0 mhz=1803/1800 
+[20:53:15]   r3 epoll len=65536 c=50 -> 21032 req/s thr=0/0/0/0 mhz=1815/1849 
+[20:53:47]   r3 iouring len=65536 c=50 -> 23449 req/s thr=0/0/0/0 mhz=1806/1803 
+[20:53:51] idle after round 3: id=99
+[20:53:51] === round 4 ===
+[20:54:21]   r4 iouring len=1024 c=50 -> 88730 req/s thr=0/0/0/0 mhz=1821/1828 
+[20:54:53]   r4 epoll len=1024 c=50 -> 80047 req/s thr=0/0/0/0 mhz=1816/1824 
+[20:55:25]   r4 iouring len=65536 c=50 -> 23445 req/s thr=0/0/0/0 mhz=1766/1803 
+[20:55:58]   r4 epoll len=65536 c=50 -> 20828 req/s thr=0/0/0/0 mhz=1749/1828 
+[20:56:02] idle after round 4: id=85
+[20:56:02] === round 5 ===
+[20:56:32]   r5 epoll len=1024 c=50 -> 79890 req/s thr=0/0/0/0 mhz=1828/1834 
+[20:57:04]   r5 iouring len=1024 c=50 -> 89472 req/s thr=0/0/0/0 mhz=1781/1827 
+[20:57:36]   r5 epoll len=65536 c=50 -> 21310 req/s thr=0/0/0/0 mhz=1807/1834 
+[20:58:08]   r5 iouring len=65536 c=50 -> 22482 req/s thr=0/0/0/0 mhz=1773/1807 
+[20:58:12] idle after round 5: id=100
+[20:58:12] done, results in /home/fred/c-control/results-netty-t1.tsv
