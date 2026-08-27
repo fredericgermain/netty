@@ -1,0 +1,44 @@
+thermal mode : Performance
+ambient      : 24 C (user-supplied)
+clock        : uncapped for this test, restored to 62% afterwards
+
+cores  startC    peakC     meanMHz   fan1    fan2    throttleD  verdict
+  (warning: did not reach 55C within 180s, started at 57C)
+/home/fred/coresweep3.sh: line 60: 10919 Killed                  taskset -c "$c" sh -c 'while :; do :; done' "$MARK"
+1      57        91        3641      3204    3507    1692       THROTTLED
+  (warning: did not reach 55C within 180s, started at 59C)
+/home/fred/coresweep3.sh: line 60: 12325 Killed                  taskset -c "$c" sh -c 'while :; do :; done' "$MARK"
+/home/fred/coresweep3.sh: line 60: 12326 Killed                  taskset -c "$c" sh -c 'while :; do :; done' "$MARK"
+2      59        98        3323      3217    3523    3900       THROTTLED
+  (warning: did not reach 55C within 180s, started at 58C)
+/home/fred/coresweep3.sh: line 60: 13122 Killed                  taskset -c "$c" sh -c 'while :; do :; done' "$MARK"
+/home/fred/coresweep3.sh: line 60: 13123 Killed                  taskset -c "$c" sh -c 'while :; do :; done' "$MARK"
+/home/fred/coresweep3.sh: line 60: 13124 Killed                  taskset -c "$c" sh -c 'while :; do :; done' "$MARK"
+3      58        99        3809      3233    3498    3903       THROTTLED
+  (warning: did not reach 55C within 180s, started at 64C)
+/home/fred/coresweep3.sh: line 60: 13887 Killed                  taskset -c "$c" sh -c 'while :; do :; done' "$MARK"
+/home/fred/coresweep3.sh: line 60: 13888 Killed                  taskset -c "$c" sh -c 'while :; do :; done' "$MARK"
+/home/fred/coresweep3.sh: line 60: 13889 Killed                  taskset -c "$c" sh -c 'while :; do :; done' "$MARK"
+/home/fred/coresweep3.sh: line 60: 13890 Killed                  taskset -c "$c" sh -c 'while :; do :; done' "$MARK"
+4      64        100       3337      3231    3517    2698       THROTTLED
+  (warning: did not reach 55C within 180s, started at 68C)
+/home/fred/coresweep3.sh: line 60: 14603 Killed                  taskset -c "$c" sh -c 'while :; do :; done' "$MARK"
+/home/fred/coresweep3.sh: line 60: 14604 Killed                  taskset -c "$c" sh -c 'while :; do :; done' "$MARK"
+/home/fred/coresweep3.sh: line 60: 14605 Killed                  taskset -c "$c" sh -c 'while :; do :; done' "$MARK"
+/home/fred/coresweep3.sh: line 60: 14606 Killed                  taskset -c "$c" sh -c 'while :; do :; done' "$MARK"
+/home/fred/coresweep3.sh: line 60: 14607 Killed                  taskset -c "$c" sh -c 'while :; do :; done' "$MARK"
+/home/fred/coresweep3.sh: line 60: 14608 Killed                  taskset -c "$c" sh -c 'while :; do :; done' "$MARK"
+6      68        100       3300      3215    3513    18604      THROTTLED
+  (warning: did not reach 55C within 180s, started at 67C)
+/home/fred/coresweep3.sh: line 60: 16259 Killed                  taskset -c "$c" sh -c 'while :; do :; done' "$MARK"
+/home/fred/coresweep3.sh: line 60: 16260 Killed                  taskset -c "$c" sh -c 'while :; do :; done' "$MARK"
+/home/fred/coresweep3.sh: line 60: 16261 Killed                  taskset -c "$c" sh -c 'while :; do :; done' "$MARK"
+/home/fred/coresweep3.sh: line 60: 16262 Killed                  taskset -c "$c" sh -c 'while :; do :; done' "$MARK"
+/home/fred/coresweep3.sh: line 60: 16264 Killed                  taskset -c "$c" sh -c 'while :; do :; done' "$MARK"
+/home/fred/coresweep3.sh: line 60: 16265 Killed                  taskset -c "$c" sh -c 'while :; do :; done' "$MARK"
+/home/fred/coresweep3.sh: line 60: 16266 Killed                  taskset -c "$c" sh -c 'while :; do :; done' "$MARK"
+/home/fred/coresweep3.sh: line 83: 16263 Killed                  taskset -c "$c" sh -c 'while :; do :; done' "$MARK"
+8      67        100       3261      3217    3510    3319       THROTTLED
+CORESWEEP3_DONE
+== restored to bench-tuning state: min=62 max=62, burners=0
+0

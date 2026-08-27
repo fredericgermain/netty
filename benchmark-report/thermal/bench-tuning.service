@@ -1,0 +1,36 @@
+[Unit]
+# Pin the CPU clock and open up profiling, for a host used as a benchmark rig.
+#
+# All of these are runtime-only and reset on every boot, and they have been re-applied by hand three
+# times already. Forgetting one does not fail loudly: it produces a sweep measured under a different
+# clock policy than the sweep it is being compared against, which is exactly the mistake that made
+# one QUIC comparison unusable.
+#
+# Ordered after multi-user so intel_pstate is present, and Type=oneshot with RemainAfterExit so the
+# unit shows as active rather than dead once it has run.
+Description=Benchmark host tuning (pinned CPU clock, profiling sysctls)
+After=multi-user.target
+ConditionPathExists=/sys/devices/system/cpu/intel_pstate/max_perf_pct
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+
+# performance governor plus min == max is what actually pins the frequency with intel_pstate. The
+# governor alone still lets the hardware scale, and intel_pstate's "powersave" is the DYNAMIC
+# governor despite the name, not a low-power fixed setting.
+#
+# 62% lands near 2800 MHz, which is the highest clock this chassis sustains on all cores without
+# reaching its 100 C trip point. Plain performance at 100% drove it to 95-100 C and throttled,
+# which corrupts a benchmark more than a lower clock does.
+ExecStart=/bin/sh -c 'for g in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do echo performance > "$g"; done'
+ExecStart=/bin/sh -c 'echo 62 > /sys/devices/system/cpu/intel_pstate/max_perf_pct'
+ExecStart=/bin/sh -c 'echo 62 > /sys/devices/system/cpu/intel_pstate/min_perf_pct'
+
+# Unprivileged perf with resolved kernel symbols, so profiling does not need container capabilities
+# or root. Lowers security posture slightly and is deliberate on a dedicated benchmark host.
+ExecStart=/sbin/sysctl -q -w kernel.perf_event_paranoid=1
+ExecStart=/sbin/sysctl -q -w kernel.kptr_restrict=0
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,39 @@
+thermal mode: Performance
+ambient reference: 24 C (user-supplied)
+
+cores   pkgTempC  meanMHz   fan1    fan2    throttleD verdict
+/home/fred/coresweep2.sh: line 51: 135009 Killed                  taskset -c "$c" sh -c 'while :; do :; done' "$MARK"
+1       92.0      3036      3239    3520    1545      THROTTLED
+/home/fred/coresweep2.sh: line 51: 135236 Killed                  taskset -c "$c" sh -c 'while :; do :; done' "$MARK"
+/home/fred/coresweep2.sh: line 51: 135237 Killed                  taskset -c "$c" sh -c 'while :; do :; done' "$MARK"
+2       96.0      3494      3212    3492    4745      THROTTLED
+/home/fred/coresweep2.sh: line 51: 135447 Killed                  taskset -c "$c" sh -c 'while :; do :; done' "$MARK"
+/home/fred/coresweep2.sh: line 51: 135448 Killed                  taskset -c "$c" sh -c 'while :; do :; done' "$MARK"
+/home/fred/coresweep2.sh: line 51: 135449 Killed                  taskset -c "$c" sh -c 'while :; do :; done' "$MARK"
+3       97.0      3050      3217    3492    4962      THROTTLED
+/home/fred/coresweep2.sh: line 51: 135684 Killed                  taskset -c "$c" sh -c 'while :; do :; done' "$MARK"
+/home/fred/coresweep2.sh: line 51: 135685 Killed                  taskset -c "$c" sh -c 'while :; do :; done' "$MARK"
+/home/fred/coresweep2.sh: line 51: 135686 Killed                  taskset -c "$c" sh -c 'while :; do :; done' "$MARK"
+/home/fred/coresweep2.sh: line 51: 135687 Killed                  taskset -c "$c" sh -c 'while :; do :; done' "$MARK"
+== cleaned: burners=0
+0 min=62 max=62
+4       57.0      2300      2830    3096    163       THROTTLED
+/home/fred/coresweep2.sh: line 51: 136270 Killed                  taskset -c "$c" sh -c 'while :; do :; done' "$MARK"
+/home/fred/coresweep2.sh: line 51: 136271 Killed                  taskset -c "$c" sh -c 'while :; do :; done' "$MARK"
+/home/fred/coresweep2.sh: line 51: 136272 Killed                  taskset -c "$c" sh -c 'while :; do :; done' "$MARK"
+/home/fred/coresweep2.sh: line 51: 136273 Killed                  taskset -c "$c" sh -c 'while :; do :; done' "$MARK"
+/home/fred/coresweep2.sh: line 51: 136274 Killed                  taskset -c "$c" sh -c 'while :; do :; done' "$MARK"
+/home/fred/coresweep2.sh: line 51: 136275 Killed                  taskset -c "$c" sh -c 'while :; do :; done' "$MARK"
+6       81.0      2800      2816    3088    0         clean
+/home/fred/coresweep2.sh: line 51: 136564 Killed                  taskset -c "$c" sh -c 'while :; do :; done' "$MARK"
+/home/fred/coresweep2.sh: line 51: 136565 Killed                  taskset -c "$c" sh -c 'while :; do :; done' "$MARK"
+/home/fred/coresweep2.sh: line 51: 136566 Killed                  taskset -c "$c" sh -c 'while :; do :; done' "$MARK"
+/home/fred/coresweep2.sh: line 51: 136567 Killed                  taskset -c "$c" sh -c 'while :; do :; done' "$MARK"
+/home/fred/coresweep2.sh: line 51: 136568 Killed                  taskset -c "$c" sh -c 'while :; do :; done' "$MARK"
+/home/fred/coresweep2.sh: line 51: 136569 Killed                  taskset -c "$c" sh -c 'while :; do :; done' "$MARK"
+/home/fred/coresweep2.sh: line 51: 136570 Killed                  taskset -c "$c" sh -c 'while :; do :; done' "$MARK"
+/home/fred/coresweep2.sh: line 65: 136571 Killed                  taskset -c "$c" sh -c 'while :; do :; done' "$MARK"
+8       78.0      2800      2806    3093    0         clean
+CORESWEEP2_DONE
+== cleaned: burners=0
+0 min=62 max=62
