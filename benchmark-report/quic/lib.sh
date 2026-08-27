@@ -12,8 +12,10 @@
 #     therefore force-removed before and after, on every path, and a trap covers the interrupts.
 #   * Port 19999 is held by a long-standing orphan nobody owns. Ports are scanned, per cell, and
 #     both the TCP and the UDP tables are checked because QUIC binds UDP and TCP binds TCP.
-#   * This host is an Intel i5-10300H, a mobile part, with the powersave governor and no pinned
-#     frequency. It throttles. See the sampler below.
+#   * This host is an Intel i5-10300H, a mobile part, with no pinned frequency. It throttles, and
+#     its governor changed from powersave to performance partway through this work, so every sweep
+#     records which one it ran under. `performance` with intel_pstate does NOT hold a uniform clock:
+#     800 to 4131 MHz has been measured across the eight logical CPUs at idle. See the sampler.
 
 set -u
 
@@ -27,7 +29,7 @@ CLIENT_OUT="${CLIENT_OUT:-/tmp/q-client-out.$$}"
 
 # Set by run_client, read by the callers when they format a row.
 CELL_MHZ_MIN=- ; CELL_MHZ_MAX=- ; CELL_MHZ_MEAN=- ; CELL_TEMP_MAX=- ; CELL_THROTTLE=-
-CELL_SRV_MHZ=- ; CELL_CLI_MHZ=- ; CELL_FOREIGN=0 ; CELL_CONTENDED=no
+CELL_SRV_MHZ=- ; CELL_CLI_MHZ=- ; CELL_FOREIGN=0 ; CELL_CONTENDED=no ; CELL_WAITED=no
 
 cleanup() {
   docker rm -f "$SRV_NAME" >/dev/null 2>&1 || true
@@ -67,9 +69,10 @@ udp_field() {   # udp_field <counter-line> <name>
 
 # ---------------------------------------------------------------- clock and heat
 #
-# This host does not hold a clock. intel_pstate, powersave governor, 800 MHz to 4500 MHz, turbo on,
-# so the governor may move across a 5.6x span inside one measured window. It cannot be pinned
-# without root here, so it is measured instead.
+# This host does not hold a clock. intel_pstate, 800 MHz to 4500 MHz, turbo on, so the governor may
+# move across a 5.6x span inside one measured window. Switching it to `performance` does not fix
+# that -- it raises the floor, it does not pin the clock -- so the frequency is measured rather than
+# assumed, per cell and per side.
 #
 # The throttle DELTA is the part that decides whether a number survives. A cumulative count over ten
 # days of uptime says only that the machine throttles sometimes; a nonzero delta across one cell
@@ -205,10 +208,24 @@ require_idle() {
 # foreign container exists AND that the CPU is at least 85% idle. run_client then re-checks
 # throughout the measured window and tags the row.
 require_quiet() {
-  local foreign idle
+  local foreign busy idle
   foreign=$(foreign_containers | tr '\n' ' ')
   if [ -n "${foreign// /}" ]; then
     echo "FOREIGN-CONTAINER: $foreign" >&2
+    return 1
+  fi
+  # The process check is not redundant with the container check. A neighbouring sweep spends several
+  # seconds between its cells with no container running at all, and a gate that looked only at
+  # containers would pass in that gap and then start a cell straight into the neighbour's next one.
+  #
+  # It matches the neighbour's DRIVER scripts, which live for their whole run, and deliberately not
+  # `lt.jar`: the neighbour and this harness use the same jar path, container processes are visible
+  # in the host's ps, and `docker rm -f` returns before the process has finished dying. Matching it
+  # would make every cell wait thirty seconds for its own predecessor and tag the whole sweep as
+  # having waited.
+  busy=$(ps -eo args | grep -E 'run-netty|run-matrix|echo_bench' | grep -v grep || true)
+  if [ -n "$busy" ]; then
+    echo "FOREIGN-PROCESS: $(echo "$busy" | head -1)" >&2
     return 1
   fi
   idle=$(vmstat 1 2 | tail -1 | awk '{print $15}')
@@ -223,10 +240,16 @@ require_quiet() {
 # neighbour rather than recording through one.
 await_quiet() {
   local i
+  CELL_WAITED=no
   for i in $(seq 1 "${AWAIT_POLLS:-60}"); do
     if require_quiet 2>/dev/null; then
       return 0
     fi
+    # Recorded per row. Interleaving protects a comparison by giving every cell in a round the same
+    # machine state, and a pause of minutes between two cells of one round breaks that. Pausing is
+    # still far better than measuring through a neighbour, but a round containing a pause should be
+    # read with that in mind rather than assumed equivalent to one that ran straight through.
+    CELL_WAITED=yes
     sleep 30
   done
   echo "AWAIT-QUIET-GAVE-UP" >&2
@@ -316,12 +339,12 @@ field() {   # field <line> <key>   -- pulls key=value out of a harness output li
 
 # The columns every sweep appends to a row, in a fixed order so the TSVs stay comparable.
 env_columns() {
-  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s' \
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s' \
     "$CELL_MHZ_MIN" "$CELL_MHZ_MAX" "$CELL_MHZ_MEAN" "$CELL_SRV_MHZ" "$CELL_CLI_MHZ" \
-    "$CELL_TEMP_MAX" "$CELL_THROTTLE" "$CELL_CONTENDED"
+    "$CELL_TEMP_MAX" "$CELL_THROTTLE" "$CELL_CONTENDED" "$CELL_WAITED"
 }
 
-ENV_HEADER='mhzMin\tmhzMax\tmhzMean\tsrvMhz\tcliMhz\ttempMaxC\tthrottleDelta\tcontended'
+ENV_HEADER='mhzMin\tmhzMax\tmhzMean\tsrvMhz\tcliMhz\ttempMaxC\tthrottleDelta\tcontended\twaited'
 
 # The line every sweep prints in its header, so a TSV records the machine state it was taken under
 # rather than leaving it to be recalled. The governor changed from powersave to performance partway

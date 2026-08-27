@@ -27,6 +27,9 @@ THREADS=4
 # under net.core.rmem_max, which is 50,000,000 here.
 BUFS="212992 4194304 16777216"
 
+# Wait rather than refuse: run-all.sh launches these back to back on a shared host, and a sweep
+# that exited because a neighbour happened to be mid-cell would simply be lost.
+await_quiet || { echo "HOST NEVER WENT QUIET" >&2; exit 1; }
 require_idle || exit 1
 
 echo "# q4 quic udp receive buffer sweep  rounds=$ROUNDS duration=${DUR}s connections=$CONNS payload=$PAYLOAD"

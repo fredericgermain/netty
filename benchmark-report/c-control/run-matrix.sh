@@ -13,6 +13,8 @@
 
 set -u
 
+. "$(dirname "$0")/bench-lib.sh"
+
 PHASE="${1:-stock}"
 ROUNDS="${2:-5}"
 DURATION="${3:-12}"
@@ -48,14 +50,14 @@ OUT="$HOME/c-control/results-${PHASE}.tsv"
 LOG="$HOME/c-control/run-${PHASE}.log"
 : > "$LOG"
 if [ ! -s "$OUT" ]; then
-  printf 'phase\tround\ttransport\tbytes\tconns\treqs_per_sec\ttotal_reqs\ttotal_resps\tnotes\n' > "$OUT"
+  printf 'phase\tround\ttransport\tbytes\tconns\treqs_per_sec\ttotal_reqs\ttotal_resps\tthrottle_d0123\tsrv_mhz\tcli_mhz\tgovernor\tnotes\n' > "$OUT"
 fi
 
 log() { echo "[$(date -u +%H:%M:%S)] $*" | tee -a "$LOG"; }
 
 cleanup() {
   docker rm -f "$SRV_NAME" >/dev/null 2>&1
-  docker rm -f "$CLI_NAME" >/dev/null 2>&1
+  docker ps -aq --filter "name=${CLI_NAME}" | xargs -r docker rm -f >/dev/null 2>&1
 }
 trap cleanup EXIT INT TERM
 
@@ -105,19 +107,32 @@ run_cell() {
   port=$(find_free_port) || { log "  no free port in 19990-20050"; return 1; }
 
   if ! start_server "$bin" "$port"; then
-    printf '%s\t%s\t%s\t%s\t%s\t\t\t\tserver-start-failed\n' \
-      "$PHASE" "$round" "$transport" "$len" "$conns" >> "$OUT"
+    printf '%s\t%s\t%s\t%s\t%s\t\t\t\t\t\t\t%s\tserver-start-failed\n' \
+      "$PHASE" "$round" "$transport" "$len" "$conns" "$(governor_now)" >> "$OUT"
     return 1
   fi
 
-  local raw
-  docker rm -f "$CLI_NAME" >/dev/null 2>&1
-  raw=$(timeout $((DURATION + 60)) docker run --rm --name "$CLI_NAME" \
+  # A unique client name per invocation: `timeout` kills the docker CLI but leaves the container
+  # running, and the next run then fails with exit 125 against a name still held by its own orphan.
+  local raw cname thr_before thr_after thr_d freqfile fsamp srvcli
+  cname="${CLI_NAME}-$$-${RANDOM}"
+  thr_before=$(throttle_snapshot)
+  freqfile=$(mktemp)
+  fsamp=$(freq_sampler_start "$freqfile" 2)
+  raw=$(timeout $((DURATION + 60)) docker run --rm --name "$cname" \
           --network=host \
           --cpuset-cpus="$CLI_CPUS" \
           "$IMAGE" "$CLIENT_BIN" \
           -a "127.0.0.1:$port" -c "$conns" -l "$len" -t "$DURATION" 2>&1)
   local rc=$?
+  freq_sampler_stop "$fsamp"
+  local foreign_after
+  foreign_after=$(foreign_containers)
+  thr_after=$(throttle_snapshot)
+  thr_d=$(throttle_delta "$thr_before" "$thr_after")
+  srvcli=$(freq_summary "$freqfile")
+  rm -f "$freqfile"
+  docker rm -f "$cname" >/dev/null 2>&1
 
   echo "--- $transport r$round len=$len conns=$conns port=$port rc=$rc" >> "$LOG"
   echo "$raw" >> "$LOG"
@@ -134,10 +149,15 @@ run_cell() {
     notes="${notes}${notes:+;}read-errors=$(echo "$raw" | grep -c 'Read error')"
   fi
   [ -z "$speed" ] && { speed=""; notes="${notes}${notes:+;}no-speed-line"; }
+  case "$thr_d" in
+    *[1-9]*) notes="${notes}${notes:+;}THROTTLED=$thr_d" ;;
+  esac
+  [ -n "$foreign_after" ] && notes="${notes}${notes:+;}CONTENDED=${foreign_after% }"
 
-  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
-    "$PHASE" "$round" "$transport" "$len" "$conns" "$speed" "$reqs" "$resps" "$notes" >> "$OUT"
-  log "  r$round $transport len=$len c=$conns -> ${speed:-FAIL} req/s ${notes:+($notes)}"
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+    "$PHASE" "$round" "$transport" "$len" "$conns" "$speed" "$reqs" "$resps" \
+    "$thr_d" "${srvcli%%/*}" "${srvcli##*/}" "$(governor_now)" "$notes" >> "$OUT"
+  log "  r$round $transport len=$len c=$conns -> ${speed:-FAIL} req/s thr=$thr_d mhz=$srvcli ${notes:+($notes)}"
 
   docker rm -f "$SRV_NAME" >/dev/null 2>&1
   # Give TIME_WAIT sockets from a 1000-connection run a moment before the next bind.
@@ -145,10 +165,18 @@ run_cell() {
 }
 
 log "phase=$PHASE rounds=$ROUNDS duration=${DURATION}s lengths=[$LENGTHS] conns=[$CONNS]"
+log "governor=$(governor_now) throttle_at_start=[$(throttle_snapshot)]"
 log "idle check: $(vmstat 1 2 | tail -1 | awk '{print "us="$13" sy="$14" id="$15}')"
+
+if ! wait_for_quiet 85 5400; then
+  log "ABORT: host never became quiet, refusing to produce numbers"
+  exit 3
+fi
+log "host quiet, starting"
 
 for round in $(seq 1 "$ROUNDS"); do
   log "=== round $round ==="
+  wait_for_quiet 85 5400 || { log "ABORT mid-run: host busy"; exit 3; }
   for len in $LENGTHS; do
     for conns in $CONNS; do
       if [ $((round % 2)) -eq 1 ]; then

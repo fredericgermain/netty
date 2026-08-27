@@ -1,0 +1,376 @@
+[20:47:18] netty phase=t1 threads=1 rounds=5 warmup=15s measure=12s
+[20:47:18] lengths=[1024 65536] conns=[50]
+[20:47:18] governor=performance throttle_at_start=[0 9121 0 22813]
+[20:47:19] idle check: us=0 sy=0 id=99
+[20:47:20] host quiet, starting
+[20:47:20] === round 1 ===
+--- WARMUP epoll r1 len=1024 conns=50 port=19990
+Benchmarking: 127.0.0.1:19990
+50 clients, running 1024 bytes, 15 sec.
+
+Speed: 77066 request/sec, 77066 response/sec
+Requests: 1156002
+Responses: 1156001
+--- MEASURED epoll r1 len=1024 conns=50 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+50 clients, running 1024 bytes, 12 sec.
+
+Speed: 79502 request/sec, 79502 response/sec
+Requests: 954032
+Responses: 954031
+--- server tail:
+SERVERCPU tMs=1787777266180 requests=1795542 utimeMs=9510 stimeMs=19740 gcCount=3 gcMs=17 volCtxt=3717 involCtxt=195 allocLoopKb=131980 allocAllKb=150423 usedDirectMb=4 pooledChunks=1
+SERVERCPU tMs=1787777268180 requests=1958257 utimeMs=9830 stimeMs=21430 gcCount=3 gcMs=17 volCtxt=3779 involCtxt=207 allocLoopKb=143446 allocAllKb=161889 usedDirectMb=4 pooledChunks=1
+[20:47:50]   r1 epoll len=1024 c=50 -> 79502 req/s thr=0/0/0/0 mhz=1818/1820 
+--- WARMUP iouring r1 len=1024 conns=50 port=19990
+Benchmarking: 127.0.0.1:19990
+50 clients, running 1024 bytes, 15 sec.
+
+Speed: 84288 request/sec, 84288 response/sec
+Requests: 1264327
+Responses: 1264325
+--- MEASURED iouring r1 len=1024 conns=50 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+50 clients, running 1024 bytes, 12 sec.
+
+Speed: 88680 request/sec, 88680 response/sec
+Requests: 1064164
+Responses: 1064163
+--- server tail:
+SERVERCPU tMs=1787777298324 requests=1985398 utimeMs=9750 stimeMs=20330 gcCount=3 gcMs=15 volCtxt=3529 involCtxt=291 allocLoopKb=134617 allocAllKb=154401 usedDirectMb=4 pooledChunks=1
+SERVERCPU tMs=1787777300321 requests=2166046 utimeMs=10050 stimeMs=22080 gcCount=3 gcMs=15 volCtxt=3592 involCtxt=312 allocLoopKb=146005 allocAllKb=165789 usedDirectMb=4 pooledChunks=1
+[20:48:22]   r1 iouring len=1024 c=50 -> 88680 req/s thr=0/0/0/0 mhz=1731/1805 
+--- WARMUP epoll r1 len=65536 conns=50 port=19990
+Benchmarking: 127.0.0.1:19990
+50 clients, running 65536 bytes, 15 sec.
+
+Speed: 19957 request/sec, 19957 response/sec
+Requests: 299367
+Responses: 299366
+--- MEASURED epoll r1 len=65536 conns=50 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+50 clients, running 65536 bytes, 12 sec.
+
+Speed: 20744 request/sec, 20744 response/sec
+Requests: 248933
+Responses: 248932
+--- server tail:
+SERVERCPU tMs=1787777330447 requests=466974 utimeMs=8340 stimeMs=20990 gcCount=1 gcMs=7 volCtxt=3301 involCtxt=255 allocLoopKb=49710 allocAllKb=68153 usedDirectMb=4 pooledChunks=1
+SERVERCPU tMs=1787777332447 requests=509704 utimeMs=8530 stimeMs=22810 gcCount=1 gcMs=7 volCtxt=3363 involCtxt=259 allocLoopKb=53891 allocAllKb=72335 usedDirectMb=4 pooledChunks=1
+[20:48:54]   r1 epoll len=65536 c=50 -> 20744 req/s thr=0/0/0/0 mhz=1812/1829 
+--- WARMUP iouring r1 len=65536 conns=50 port=19990
+Benchmarking: 127.0.0.1:19990
+50 clients, running 65536 bytes, 15 sec.
+
+Speed: 22773 request/sec, 22773 response/sec
+Requests: 341604
+Responses: 341604
+--- MEASURED iouring r1 len=65536 conns=50 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+50 clients, running 65536 bytes, 12 sec.
+
+Speed: 23782 request/sec, 23782 response/sec
+Requests: 285388
+Responses: 285388
+--- server tail:
+SERVERCPU tMs=1787777362591 requests=535324 utimeMs=10620 stimeMs=21660 gcCount=1 gcMs=8 volCtxt=3943 involCtxt=209 allocLoopKb=46942 allocAllKb=66726 usedDirectMb=8 pooledChunks=2
+SERVERCPU tMs=1787777364566 requests=583324 utimeMs=10790 stimeMs=23530 gcCount=1 gcMs=8 volCtxt=4010 involCtxt=216 allocLoopKb=50487 allocAllKb=70271 usedDirectMb=8 pooledChunks=2
+[20:49:26]   r1 iouring len=65536 c=50 -> 23782 req/s thr=0/0/0/0 mhz=1806/1809 
+[20:49:30] idle after round 1: id=99
+[20:49:30] === round 2 ===
+--- WARMUP iouring r2 len=1024 conns=50 port=19990
+Benchmarking: 127.0.0.1:19990
+50 clients, running 1024 bytes, 15 sec.
+
+Speed: 84815 request/sec, 84815 response/sec
+Requests: 1272232
+Responses: 1272230
+--- MEASURED iouring r2 len=1024 conns=50 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+50 clients, running 1024 bytes, 12 sec.
+
+Speed: 89419 request/sec, 89418 response/sec
+Requests: 1073028
+Responses: 1073027
+--- server tail:
+SERVERCPU tMs=1787777396682 requests=1998310 utimeMs=9740 stimeMs=20330 gcCount=3 gcMs=16 volCtxt=3691 involCtxt=205 allocLoopKb=133826 allocAllKb=153610 usedDirectMb=4 pooledChunks=1
+SERVERCPU tMs=1787777398688 requests=2178955 utimeMs=10030 stimeMs=22090 gcCount=3 gcMs=16 volCtxt=3754 involCtxt=212 allocLoopKb=145274 allocAllKb=165057 usedDirectMb=4 pooledChunks=1
+[20:50:00]   r2 iouring len=1024 c=50 -> 89419 req/s thr=0/0/0/0 mhz=1801/1803 
+--- WARMUP epoll r2 len=1024 conns=50 port=19990
+Benchmarking: 127.0.0.1:19990
+50 clients, running 1024 bytes, 15 sec.
+
+Speed: 75342 request/sec, 75342 response/sec
+Requests: 1130141
+Responses: 1130139
+--- MEASURED epoll r2 len=1024 conns=50 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+50 clients, running 1024 bytes, 12 sec.
+
+Speed: 79873 request/sec, 79873 response/sec
+Requests: 958484
+Responses: 958482
+--- server tail:
+SERVERCPU tMs=1787777428745 requests=1779867 utimeMs=9140 stimeMs=19640 gcCount=3 gcMs=15 volCtxt=3589 involCtxt=177 allocLoopKb=131108 allocAllKb=149552 usedDirectMb=4 pooledChunks=1
+SERVERCPU tMs=1787777430745 requests=1942337 utimeMs=9430 stimeMs=21360 gcCount=3 gcMs=15 volCtxt=3650 involCtxt=184 allocLoopKb=142687 allocAllKb=161131 usedDirectMb=4 pooledChunks=1
+[20:50:32]   r2 epoll len=1024 c=50 -> 79873 req/s thr=0/0/0/0 mhz=1805/1842 
+--- WARMUP iouring r2 len=65536 conns=50 port=19990
+Benchmarking: 127.0.0.1:19990
+50 clients, running 65536 bytes, 15 sec.
+
+Speed: 22997 request/sec, 22997 response/sec
+Requests: 344959
+Responses: 344957
+--- MEASURED iouring r2 len=65536 conns=50 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+50 clients, running 65536 bytes, 12 sec.
+
+Speed: 23361 request/sec, 23361 response/sec
+Requests: 280334
+Responses: 280334
+--- server tail:
+SERVERCPU tMs=1787777460900 requests=532222 utimeMs=10490 stimeMs=21720 gcCount=1 gcMs=8 volCtxt=3863 involCtxt=239 allocLoopKb=47180 allocAllKb=66964 usedDirectMb=8 pooledChunks=2
+SERVERCPU tMs=1787777462898 requests=580148 utimeMs=10630 stimeMs=23590 gcCount=1 gcMs=8 volCtxt=3926 involCtxt=250 allocLoopKb=50756 allocAllKb=70540 usedDirectMb=8 pooledChunks=2
+[20:51:04]   r2 iouring len=65536 c=50 -> 23361 req/s thr=0/0/0/0 mhz=1809/1816 
+--- WARMUP epoll r2 len=65536 conns=50 port=19990
+Benchmarking: 127.0.0.1:19990
+50 clients, running 65536 bytes, 15 sec.
+
+Speed: 20305 request/sec, 20305 response/sec
+Requests: 304583
+Responses: 304582
+--- MEASURED epoll r2 len=65536 conns=50 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+50 clients, running 65536 bytes, 12 sec.
+
+Speed: 21040 request/sec, 21040 response/sec
+Requests: 252485
+Responses: 252485
+--- server tail:
+SERVERCPU tMs=1787777493031 requests=475505 utimeMs=8730 stimeMs=20900 gcCount=1 gcMs=7 volCtxt=3517 involCtxt=233 allocLoopKb=50044 allocAllKb=68492 usedDirectMb=4 pooledChunks=1
+SERVERCPU tMs=1787777495033 requests=518432 utimeMs=8910 stimeMs=22730 gcCount=1 gcMs=7 volCtxt=3583 involCtxt=241 allocLoopKb=54136 allocAllKb=72583 usedDirectMb=4 pooledChunks=1
+[20:51:37]   r2 epoll len=65536 c=50 -> 21040 req/s thr=0/0/0/0 mhz=1775/1845 
+[20:51:41] idle after round 2: id=99
+[20:51:41] === round 3 ===
+--- WARMUP epoll r3 len=1024 conns=50 port=19990
+Benchmarking: 127.0.0.1:19990
+50 clients, running 1024 bytes, 15 sec.
+
+Speed: 74266 request/sec, 74266 response/sec
+Requests: 1114003
+Responses: 1114002
+--- MEASURED epoll r3 len=1024 conns=50 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+50 clients, running 1024 bytes, 12 sec.
+
+Speed: 78690 request/sec, 78690 response/sec
+Requests: 944287
+Responses: 944286
+--- server tail:
+SERVERCPU tMs=1787777529116 requests=1905048 utimeMs=9490 stimeMs=21300 gcCount=3 gcMs=15 volCtxt=3839 involCtxt=207 allocLoopKb=139996 allocAllKb=158440 usedDirectMb=4 pooledChunks=1
+SERVERCPU tMs=1787777531116 requests=2058290 utimeMs=9750 stimeMs=22920 gcCount=3 gcMs=15 volCtxt=3918 involCtxt=214 allocLoopKb=150869 allocAllKb=169313 usedDirectMb=4 pooledChunks=1
+[20:52:11]   r3 epoll len=1024 c=50 -> 78690 req/s thr=0/0/0/0 mhz=1815/1812 
+--- WARMUP iouring r3 len=1024 conns=50 port=19990
+Benchmarking: 127.0.0.1:19990
+50 clients, running 1024 bytes, 15 sec.
+
+Speed: 84229 request/sec, 84228 response/sec
+Requests: 1263435
+Responses: 1263434
+--- MEASURED iouring r3 len=1024 conns=50 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+50 clients, running 1024 bytes, 12 sec.
+
+Speed: 87145 request/sec, 87145 response/sec
+Requests: 1045748
+Responses: 1045747
+--- server tail:
+SERVERCPU tMs=1787777559333 requests=1981364 utimeMs=9240 stimeMs=20380 gcCount=3 gcMs=16 volCtxt=3822 involCtxt=212 allocLoopKb=409589 allocAllKb=429373 usedDirectMb=4 pooledChunks=1
+SERVERCPU tMs=1787777561337 requests=2157254 utimeMs=9500 stimeMs=22140 gcCount=3 gcMs=16 volCtxt=3883 involCtxt=229 allocLoopKb=445472 allocAllKb=465257 usedDirectMb=4 pooledChunks=1
+[20:52:43]   r3 iouring len=1024 c=50 -> 87145 req/s thr=0/0/0/0 mhz=1803/1800 
+--- WARMUP epoll r3 len=65536 conns=50 port=19990
+Benchmarking: 127.0.0.1:19990
+50 clients, running 65536 bytes, 15 sec.
+
+Speed: 20028 request/sec, 20028 response/sec
+Requests: 300421
+Responses: 300420
+--- MEASURED epoll r3 len=65536 conns=50 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+50 clients, running 65536 bytes, 12 sec.
+
+Speed: 21032 request/sec, 21032 response/sec
+Requests: 252386
+Responses: 252385
+--- server tail:
+SERVERCPU tMs=1787777591422 requests=471077 utimeMs=8690 stimeMs=20830 gcCount=1 gcMs=7 volCtxt=3539 involCtxt=199 allocLoopKb=50016 allocAllKb=68460 usedDirectMb=4 pooledChunks=1
+SERVERCPU tMs=1787777593421 requests=513460 utimeMs=8930 stimeMs=22610 gcCount=1 gcMs=7 volCtxt=3596 involCtxt=203 allocLoopKb=53995 allocAllKb=72439 usedDirectMb=4 pooledChunks=1
+[20:53:15]   r3 epoll len=65536 c=50 -> 21032 req/s thr=0/0/0/0 mhz=1815/1849 
+--- WARMUP iouring r3 len=65536 conns=50 port=19990
+Benchmarking: 127.0.0.1:19990
+50 clients, running 65536 bytes, 15 sec.
+
+Speed: 22833 request/sec, 22833 response/sec
+Requests: 342509
+Responses: 342509
+--- MEASURED iouring r3 len=65536 conns=50 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+50 clients, running 65536 bytes, 12 sec.
+
+Speed: 23449 request/sec, 23449 response/sec
+Requests: 281396
+Responses: 281394
+--- server tail:
+SERVERCPU tMs=1787777623582 requests=530899 utimeMs=10120 stimeMs=21760 gcCount=1 gcMs=8 volCtxt=3789 involCtxt=243 allocLoopKb=46582 allocAllKb=66367 usedDirectMb=8 pooledChunks=2
+SERVERCPU tMs=1787777625619 requests=580489 utimeMs=10280 stimeMs=23670 gcCount=1 gcMs=8 volCtxt=3855 involCtxt=252 allocLoopKb=50233 allocAllKb=70018 usedDirectMb=8 pooledChunks=2
+[20:53:47]   r3 iouring len=65536 c=50 -> 23449 req/s thr=0/0/0/0 mhz=1806/1803 
+[20:53:51] idle after round 3: id=99
+[20:53:51] === round 4 ===
+--- WARMUP iouring r4 len=1024 conns=50 port=19990
+Benchmarking: 127.0.0.1:19990
+50 clients, running 1024 bytes, 15 sec.
+
+Speed: 85902 request/sec, 85902 response/sec
+Requests: 1288537
+Responses: 1288535
+--- MEASURED iouring r4 len=1024 conns=50 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+50 clients, running 1024 bytes, 12 sec.
+
+Speed: 88730 request/sec, 88730 response/sec
+Requests: 1064760
+Responses: 1064760
+--- server tail:
+SERVERCPU tMs=1787777659708 requests=2197025 utimeMs=9370 stimeMs=22210 gcCount=3 gcMs=18 volCtxt=3792 involCtxt=157 allocLoopKb=146380 allocAllKb=166167 usedDirectMb=4 pooledChunks=1
+SERVERCPU tMs=1787777661697 requests=2353297 utimeMs=9590 stimeMs=23860 gcCount=3 gcMs=18 volCtxt=3865 involCtxt=173 allocLoopKb=156249 allocAllKb=176036 usedDirectMb=4 pooledChunks=1
+[20:54:21]   r4 iouring len=1024 c=50 -> 88730 req/s thr=0/0/0/0 mhz=1821/1828 
+--- WARMUP epoll r4 len=1024 conns=50 port=19990
+Benchmarking: 127.0.0.1:19990
+50 clients, running 1024 bytes, 15 sec.
+
+Speed: 76279 request/sec, 76279 response/sec
+Requests: 1144196
+Responses: 1144195
+--- MEASURED epoll r4 len=1024 conns=50 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+50 clients, running 1024 bytes, 12 sec.
+
+Speed: 80047 request/sec, 80047 response/sec
+Requests: 960567
+Responses: 960566
+--- server tail:
+SERVERCPU tMs=1787777689866 requests=1795152 utimeMs=9420 stimeMs=19740 gcCount=3 gcMs=15 volCtxt=3693 involCtxt=288 allocLoopKb=131836 allocAllKb=150280 usedDirectMb=4 pooledChunks=1
+SERVERCPU tMs=1787777691865 requests=1955777 utimeMs=9710 stimeMs=21460 gcCount=3 gcMs=15 volCtxt=3758 involCtxt=293 allocLoopKb=143058 allocAllKb=161502 usedDirectMb=4 pooledChunks=1
+[20:54:53]   r4 epoll len=1024 c=50 -> 80047 req/s thr=0/0/0/0 mhz=1816/1824 
+--- WARMUP iouring r4 len=65536 conns=50 port=19990
+Benchmarking: 127.0.0.1:19990
+50 clients, running 65536 bytes, 15 sec.
+
+Speed: 22371 request/sec, 22371 response/sec
+Requests: 335579
+Responses: 335579
+--- MEASURED iouring r4 len=65536 conns=50 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+50 clients, running 65536 bytes, 12 sec.
+
+Speed: 23445 request/sec, 23445 response/sec
+Requests: 281341
+Responses: 281341
+--- server tail:
+SERVERCPU tMs=1787777722026 requests=526224 utimeMs=10250 stimeMs=21800 gcCount=1 gcMs=7 volCtxt=3688 involCtxt=260 allocLoopKb=46398 allocAllKb=66181 usedDirectMb=8 pooledChunks=2
+SERVERCPU tMs=1787777724010 requests=574224 utimeMs=10430 stimeMs=23670 gcCount=1 gcMs=7 volCtxt=3754 involCtxt=267 allocLoopKb=50048 allocAllKb=69832 usedDirectMb=8 pooledChunks=2
+[20:55:25]   r4 iouring len=65536 c=50 -> 23445 req/s thr=0/0/0/0 mhz=1766/1803 
+--- WARMUP epoll r4 len=65536 conns=50 port=19990
+Benchmarking: 127.0.0.1:19990
+50 clients, running 65536 bytes, 15 sec.
+
+Speed: 20018 request/sec, 20018 response/sec
+Requests: 300283
+Responses: 300282
+--- MEASURED epoll r4 len=65536 conns=50 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+50 clients, running 65536 bytes, 12 sec.
+
+Speed: 20828 request/sec, 20828 response/sec
+Requests: 249943
+Responses: 249942
+--- server tail:
+SERVERCPU tMs=1787777754052 requests=469512 utimeMs=8610 stimeMs=20920 gcCount=1 gcMs=7 volCtxt=3648 involCtxt=199 allocLoopKb=49639 allocAllKb=68083 usedDirectMb=4 pooledChunks=1
+SERVERCPU tMs=1787777756052 requests=512099 utimeMs=8840 stimeMs=22710 gcCount=1 gcMs=7 volCtxt=3707 involCtxt=202 allocLoopKb=53627 allocAllKb=72071 usedDirectMb=4 pooledChunks=1
+[20:55:58]   r4 epoll len=65536 c=50 -> 20828 req/s thr=0/0/0/0 mhz=1749/1828 
+[20:56:02] idle after round 4: id=85
+[20:56:02] === round 5 ===
+--- WARMUP epoll r5 len=1024 conns=50 port=19990
+Benchmarking: 127.0.0.1:19990
+50 clients, running 1024 bytes, 15 sec.
+
+Speed: 76876 request/sec, 76876 response/sec
+Requests: 1153151
+Responses: 1153150
+--- MEASURED epoll r5 len=1024 conns=50 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+50 clients, running 1024 bytes, 12 sec.
+
+Speed: 79890 request/sec, 79890 response/sec
+Requests: 958685
+Responses: 958685
+--- server tail:
+SERVERCPU tMs=1787777788209 requests=1800014 utimeMs=9030 stimeMs=19660 gcCount=3 gcMs=15 volCtxt=3364 involCtxt=215 allocLoopKb=132546 allocAllKb=150989 usedDirectMb=4 pooledChunks=1
+SERVERCPU tMs=1787777790209 requests=1964134 utimeMs=9350 stimeMs=21350 gcCount=3 gcMs=15 volCtxt=3424 involCtxt=230 allocLoopKb=144092 allocAllKb=162536 usedDirectMb=4 pooledChunks=1
+[20:56:32]   r5 epoll len=1024 c=50 -> 79890 req/s thr=0/0/0/0 mhz=1828/1834 
+--- WARMUP iouring r5 len=1024 conns=50 port=19990
+Benchmarking: 127.0.0.1:19990
+50 clients, running 1024 bytes, 15 sec.
+
+Speed: 83117 request/sec, 83117 response/sec
+Requests: 1246766
+Responses: 1246765
+--- MEASURED iouring r5 len=1024 conns=50 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+50 clients, running 1024 bytes, 12 sec.
+
+Speed: 89472 request/sec, 89472 response/sec
+Requests: 1073670
+Responses: 1073670
+--- server tail:
+SERVERCPU tMs=1787777820363 requests=1981610 utimeMs=9550 stimeMs=20370 gcCount=3 gcMs=16 volCtxt=3635 involCtxt=192 allocLoopKb=219147 allocAllKb=238930 usedDirectMb=4 pooledChunks=1
+SERVERCPU tMs=1787777822363 requests=2162270 utimeMs=9890 stimeMs=22130 gcCount=3 gcMs=16 volCtxt=3702 involCtxt=197 allocLoopKb=231150 allocAllKb=250933 usedDirectMb=4 pooledChunks=1
+[20:57:04]   r5 iouring len=1024 c=50 -> 89472 req/s thr=0/0/0/0 mhz=1781/1827 
+--- WARMUP epoll r5 len=65536 conns=50 port=19990
+Benchmarking: 127.0.0.1:19990
+50 clients, running 65536 bytes, 15 sec.
+
+Speed: 19899 request/sec, 19899 response/sec
+Requests: 298490
+Responses: 298489
+--- MEASURED epoll r5 len=65536 conns=50 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+50 clients, running 65536 bytes, 12 sec.
+
+Speed: 21310 request/sec, 21310 response/sec
+Requests: 255727
+Responses: 255726
+--- server tail:
+SERVERCPU tMs=1787777852370 requests=471539 utimeMs=7990 stimeMs=20910 gcCount=1 gcMs=7 volCtxt=3515 involCtxt=207 allocLoopKb=49680 allocAllKb=68123 usedDirectMb=4 pooledChunks=1
+SERVERCPU tMs=1787777854369 requests=514599 utimeMs=8180 stimeMs=22740 gcCount=1 gcMs=7 volCtxt=3576 involCtxt=218 allocLoopKb=53724 allocAllKb=72167 usedDirectMb=4 pooledChunks=1
+[20:57:36]   r5 epoll len=65536 c=50 -> 21310 req/s thr=0/0/0/0 mhz=1807/1834 
+--- WARMUP iouring r5 len=65536 conns=50 port=19990
+Benchmarking: 127.0.0.1:19990
+50 clients, running 65536 bytes, 15 sec.
+
+Speed: 21708 request/sec, 21708 response/sec
+Requests: 325632
+Responses: 325630
+--- MEASURED iouring r5 len=65536 conns=50 port=19990 rc=0
+Benchmarking: 127.0.0.1:19990
+50 clients, running 65536 bytes, 12 sec.
+
+Speed: 22482 request/sec, 22482 response/sec
+Requests: 269792
+Responses: 269791
+--- server tail:
+SERVERCPU tMs=1787777884505 requests=508655 utimeMs=10760 stimeMs=21710 gcCount=1 gcMs=8 volCtxt=4194 involCtxt=335 allocLoopKb=46264 allocAllKb=66051 usedDirectMb=8 pooledChunks=2
+SERVERCPU tMs=1787777886545 requests=555052 utimeMs=10940 stimeMs=23630 gcCount=1 gcMs=8 volCtxt=4254 involCtxt=360 allocLoopKb=49748 allocAllKb=69535 usedDirectMb=8 pooledChunks=2
+[20:58:08]   r5 iouring len=65536 c=50 -> 22482 req/s thr=0/0/0/0 mhz=1773/1807 
+[20:58:12] idle after round 5: id=100
+[20:58:12] done, results in /home/fred/c-control/results-netty-t1.tsv
