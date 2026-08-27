@@ -233,6 +233,61 @@ is that it roughly halves handshake cost, and against `boringssl-static` it is c
 
 # Article 3: io_uring lost to epoll, and the reason took six wrong hypotheses to find
 
+## Read this before the tables below: at one thread with a C client, io_uring WINS
+
+**[SOLID]** The last experiment run on this branch inverts its headline, and the tables further down
+have to be read in that light.
+
+Netty's own server, driven by the C benchmark's client (`frevib`/`rust_echo_bench`) over the raw
+unframed protocol, 50 connections, **one** event loop thread, `performance` governor, 5 interleaved
+rounds, zero throttle deltas:
+
+| payload | epoll | io_uring | ratio |
+|---|---|---|---|
+| 1 KB | 79,873 [78,690-80,047] | 88,730 [87,145-89,472] | **1.11x** |
+| 64 KB | 21,032 [20,744-21,310] | 23,445 [22,482-23,782] | **1.11x** |
+
+Non-overlapping ranges in both cells. **netty's io_uring wins, including at 64 KB, where every other
+cell on this branch puts it at 45-55% of epoll.**
+
+It also beats the C reference server on the same axis. Under the same governor, both single-threaded,
+both at 50 connections, so directly comparable:
+
+| payload | frevib C server | netty, 1 thread |
+|---|---|---|
+| 1 KB | 1.08x | **1.11x** |
+| 64 KB | **0.88x** | **1.11x** |
+
+At 64 KB the C server's io_uring loses to its own epoll while netty's io_uring beats its own. Whatever
+the size-dependent decay is, netty is not worse at it than a hand-written C echo server, and at one
+thread it is better.
+
+**What changed between this cell and the ones showing a 45-55% deficit**, any of which could carry
+the effect:
+
+- **50 connections** rather than 2,000 to 10,000
+- **the C client** rather than the Java one
+- **raw framing** rather than the 4-byte length prefix
+- **one event loop thread** rather than four
+
+**[UNCERTAIN] Which of those four is responsible is not established**, and that is now the most
+important open question on the branch. The connection count is the strongest suspect, because the
+memory-footprint effect measured earlier scaled with concurrency and not with message size, and
+because 50 connections on 4 physical cores is a completely different regime from 10,000.
+
+**The 4-thread sweep from the same run is discarded**, not caveated: ranges like 146,404-236,858 with
+every cell overlapping, contended by another agent measuring at the same time. See the contention
+section above for why that is a discard rather than a caveat.
+
+**What this does and does not change.** The deficit measured at high connection count with the Java
+client is real, reproduced across many interleaved rounds, and the reads-per-message lever
+(`--rcvbuf-max`, moving throughput 161%) is real too. What is no longer supportable is the framing
+that netty's io_uring transport is simply slower than its epoll transport. In at least one clean
+configuration it is 11% faster at both ends of the payload range. Any article drawing on the tables
+below must carry this cell alongside them.
+
+
+
 This is the strongest narrative because almost every step was a negative result, and the
 methodology is the point.
 
