@@ -729,6 +729,72 @@ disqualified run and the clean run agree. That is luck, not method. A contended 
 branch inverted a transport ordering outright, so "the number looked plausible" is not evidence that a
 disqualified cell was fine.
 
+# Article 3c: the Alpine slowdown was the allocator, and one environment variable fixes it
+
+**[SOLID]** netty QUIC runs about 17% slower on Alpine than on Debian with the same jar and the same
+hardware. The cause is **musl's `mallocng` allocator**, which serialises on a shared lock, combined
+with quiche allocating on every packet from Rust. Nothing in netty is implicated, and nothing in the
+musl loadability fix.
+
+| config | ctx switches / 5 s | req/s | vs glibc |
+|---|---|---|---|
+| musl, `mallocng` (default) | 29,883 | 53,737 | **-17.3%** |
+| musl + jemalloc | 1,103 | **64,149** | **-1.3%** |
+| musl + mimalloc | 1,465 | 60,644 | -6.7% |
+| glibc (control) | 851 | 64,997 | -- |
+
+`LD_PRELOAD=/usr/lib/libjemalloc.so.2` cuts context switches 27x and takes the throughput gap from
+17.3% to 1.3%. Two unrelated allocators both fix it.
+
+## The minimisation is the interesting part
+
+A parameterised loop that reports a musl-vs-glibc context-switch ratio for any workload turned the
+search into changing one argument:
+
+| workload | musl | glibc | ratio | |
+|---|---|---|---|---|
+| idle QUIC server | 206 | 211 | 0.98 | GREEN |
+| pure CPU, 4 threads | 570 | 595 | 0.96 | GREEN |
+| raw UDP echo, 4 threads | 1,100,791 | 1,082,131 | 1.02 | GREEN |
+| netty TCP plaintext | 14,128 | 14,145 | 1.00 | GREEN |
+| netty TCP + TLS | 168 | 173 | 0.97 | GREEN |
+| **netty QUIC** | **32,499** | **2,694** | **12.06** | **RED** |
+
+Every plausible general explanation dies in that table. Not the JVM, not musl as such, not
+scheduling, not datagram syscalls, not netty's transport, not TLS through BoringSSL. Only quiche.
+
+Alpine's `musl-dbg` package is what made the rest possible: without it the entire C library is one
+opaque frame, `/lib/ld-musl-x86_64.so.1`, because musl links allocator, string routines, pthread and
+the dynamic linker into a single stripped image. With symbols the top frames are `__lock`,
+`__libc_malloc_impl`, `alloc_slot`, `get_meta`. Futex tracing then showed musl parking in its own
+`__unlock` (67%) and `__lock` (32%), where glibc parks in ordinary JVM monitor waits.
+
+## This also explains an earlier result that looked inconsistent
+
+`boringssl-static` showed **no** libc effect on TLS handshakes, while QUIC shows 17%. Both are true:
+BoringSSL allocates far less per operation than quiche does, so it never hits the lock hard enough
+to matter. The libc penalty is not a constant, it scales with native allocation rate.
+
+## Two hypotheses I asserted and had to withdraw
+
+**"Allocation is ruled out."** `--prealloc` cut per-request allocation from ~886 to ~637 B and left
+musl's context switches flat, which looked decisive. It was not: `--prealloc` reduces netty's
+**Java-side** allocation only, and quiche allocates through musl untouched by it. One side was
+tested and the whole hypothesis was declared dead.
+
+**"Four threads contending on the allocator lock."** The gap persists single-threaded (2,925 against
+330), and one thread cannot contend with itself. The cost is `mallocng`'s locking per allocation,
+not contention between event loops.
+
+Both were stated confidently off a frame list before the falsifying test was run. The `LD_PRELOAD`
+test should have been first: it is cheap, decisive, and doubles as the remedy. That is the same
+error as the retracted 292x ring claim and the withdrawn client-side attribution, which makes three.
+
+**For anyone running a JVM on Alpine**: if the workload allocates heavily in native code, expect
+this, and measure with an alternative allocator preloaded before concluding anything about musl.
+
+---
+
 # Article 4: the traps that returned a plausible number instead of an error
 
 Every one of these was hit for real in this work. That is the thesis: the failure mode of
