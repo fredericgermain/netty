@@ -73,6 +73,43 @@ which is ordinary JVM monitor parking.
 
 **5. The intervention.** Replacing the allocator collapses both the switches and the gap, as above.
 
+## The allocation rate, and who is responsible
+
+**[SOLID]** A uprobe on `malloc`, counting callers by the return address at `[rsp]`, during a
+steady 500-connection QUIC load on the server:
+
+**2,615,428 mallocs in 3 seconds**, about 872k/s, or roughly **16 per request**.
+
+| library | share of mallocs | count |
+|---|---|---|
+| `libnetty_quiche42_linux_x86_64.so` | **90.47%** | 2,366,136 |
+| `libjvm.so` | 9.53% | 249,288 |
+| musl itself | 0.00% | 3 |
+
+That rate is why a lock on the allocator matters at all. The per-site counts cluster into roughly
+five or six distinct hot addresses (373,157 twice, 291,170 three times, 124,385 four times), so this
+is a handful of paths allocating on every packet rather than diffuse pressure.
+
+**Individual call sites could not be symbolised.** netty extracts its native library to `/tmp` and
+unlinks it, so the mapping reads `(deleted)` and `addr2line` has nothing to read, and the shipped
+`.so` is stripped in any case. Naming the Rust functions would need a quiche build with symbols.
+Not required for the conclusion, since the intervention already confirms the mechanism, but it is
+what a fix inside quiche would need.
+
+### Two probe failures worth recording
+
+`ustack()` is useless here: neither musl nor quiche is built with frame pointers, so a BPF stack
+walk returns nothing above the probe. Reading the return address from `[rsp]` at function entry
+sidesteps unwinding entirely and gives the immediate caller exactly.
+
+**bpftrace reported success on a probe that matched nothing.** `uprobe:<musl>:__lock` printed
+"Attaching 1 probe..." and then produced zero samples for five seconds. The cause is that `__lock`
+and `__unlock` are LOCAL symbols in musl (`nm` shows `t`, not `T`), present only in the `musl-dbg`
+file and absent from the dynamic symbol table that bpftrace resolves names against. Its address
+form then failed outright with "Could not resolve address". Only a sanity probe on `malloc`, which
+fired 1.7M times in 2 s, distinguished "this call path is quiet" from "this probe never attached" --
+the same silent-plausible-answer failure mode as the rest of this branch, in a new tool.
+
 ## Two hypotheses asserted and withdrawn
 
 Both were stated confidently before the falsifying test was run, and both were wrong. They are kept
