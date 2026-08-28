@@ -77,6 +77,12 @@ and `stack256.log`, all of which this catalogue previously listed as never read.
 particular are not reflected in `FINDINGS.md` and should be folded in: D21 is the largest single
 improvement to io_uring measured anywhere in this branch.
 
+## Part E: the benchmark host itself
+
+| id | title | question | confidence | file |
+|---|---|---|---|---|
+| E1 | Thermal and fan behaviour | Is the cooling faulty, or is this chassis simply unable to sustain the load, and what clock policy should a benchmark run under? | SOLID for the fan and thermal measurements; core-count ceiling never completed | [E1](tests/E1-thermal-and-fan-behaviour.md) |
+
 ---
 
 ## Where the raw data lives

@@ -1,0 +1,40 @@
+# Pin the CPU clock, thermal mode and profiling access, for a host used as a benchmark rig.
+#
+# All of these are runtime-only and reset on every boot, and they were re-applied by hand several
+# times before this existed. Forgetting one does not fail loudly: it produces a sweep measured under
+# a different clock policy than the sweep it is being compared against, which is exactly the mistake
+# that made one QUIC comparison unusable.
+#
+# NEVER enabled at boot. The benchmark harness starts this before a sweep and stops it after, because
+# only the harness knows when a measurement is actually happening. A host pinned at boot cannot idle
+# down for the rest of its life, and a reboot would silently change the conditions of the next run.
+#
+#   sudo systemctl start bench-tuning.service    before a sweep
+#   sudo systemctl stop  bench-tuning.service    after; runs ExecStop and restores stock settings
+#   sudo bench-tuning.sh check                   verify; exits nonzero when not ready
+#
+# The work lives in bench-tuning.sh rather than in ExecStart lines so that the same logic is
+# reachable by hand, is testable, and can carry the measurements that justify each value. An earlier
+# version of this unit inlined the settings and had no way to undo them.
+
+[Unit]
+Description=Benchmark host tuning (pinned CPU clock, thermal mode, profiling sysctls)
+After=multi-user.target
+# Guards a host without intel_pstate, where every ExecStart line would fail one at a time.
+ConditionPathExists=/sys/devices/system/cpu/intel_pstate/max_perf_pct
+
+[Service]
+Type=oneshot
+# Keeps the unit "active" after the oneshot finishes, so `systemctl stop` runs ExecStop and actually
+# restores stock behaviour rather than doing nothing.
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/bench-tuning.sh start
+ExecStop=/usr/local/sbin/bench-tuning.sh stop
+# The script exits nonzero when the host is not ready to measure, which is usually a foreign
+# container rather than a failure to apply anything. That should not mark the unit failed.
+SuccessExitStatus=0 1
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
