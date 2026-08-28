@@ -1,0 +1,59 @@
+== benchmark environment, thor, 2026-08-28T05:58:12+01:00
+  [32mOK[0m   dell thermal mode = Performance
+  [32mOK[0m   governor = performance on all cpus
+  [32mOK[0m   clock pinned at min=max=62%
+  [32mOK[0m   perf_event_paranoid = 1
+  [32mOK[0m   kptr_restrict = 0
+== observed state
+   package +57.0°C, fans 2843/3148 RPM
+   throttle counts c0-c3: 1727 15030 40 17351 
+   load 2.50 3.56 2.67
+  [32mOK[0m   no foreign containers
+
+== READY
+port=20410 conns=500 payload=1024 QUIC, server measured
+bench-tuning.service active; startTemp=61C
+
+-- round 1  start=60C  order=forward
+musl mallocng (default)    ctxSw/5s=25215     reqPerSec=54208    thr=0/0/0/0    srvMHz=2800  cliMHz=2800  66C
+glibc malloc (default)     ctxSw/5s=3297      reqPerSec=62265    thr=0/0/0/0    srvMHz=2799  cliMHz=2800  71C
+musl + jemalloc            ctxSw/5s=2350      reqPerSec=63358    thr=0/0/0/0    srvMHz=2799  cliMHz=2799  72C
+glibc + jemalloc           ctxSw/5s=2230      reqPerSec=63807    thr=0/0/0/0    srvMHz=2799  cliMHz=2799  74C
+musl + mimalloc            ctxSw/5s=16831     reqPerSec=55442    thr=0/0/0/0    srvMHz=2800  cliMHz=2800  74C
+glibc + mimalloc           ctxSw/5s=3959      reqPerSec=62883    thr=0/0/0/0    srvMHz=2800  cliMHz=2800  76C
+
+-- round 2  start=60C  order=reversed
+glibc + mimalloc           ctxSw/5s=2204      reqPerSec=62947    thr=0/0/0/0    srvMHz=2800  cliMHz=2799  66C
+musl + mimalloc            ctxSw/5s=3990      reqPerSec=57948    thr=0/0/0/0    srvMHz=2799  cliMHz=2799  68C
+glibc + jemalloc           ctxSw/5s=4174      reqPerSec=62256    thr=0/0/0/0    srvMHz=2800  cliMHz=2799  73C
+musl + jemalloc            ctxSw/5s=8539      reqPerSec=61157    thr=0/0/0/0    srvMHz=2799  cliMHz=2799  72C
+glibc malloc (default)     ctxSw/5s=4438      reqPerSec=63315    thr=0/0/0/0    srvMHz=2800  cliMHz=2800  74C
+musl mallocng (default)    ctxSw/5s=41522     reqPerSec=46613    thr=0/0/0/0    srvMHz=2799  cliMHz=2799  74C
+
+-- round 3  start=60C  order=forward
+musl mallocng (default)    ctxSw/5s=85708     reqPerSec=51736    thr=0/0/0/0    srvMHz=2800  cliMHz=2800  65C
+glibc malloc (default)     ctxSw/5s=1933      reqPerSec=63631    thr=0/0/0/0    srvMHz=2800  cliMHz=2799  69C
+musl + jemalloc            ctxSw/5s=1280      reqPerSec=62785    thr=0/0/0/0    srvMHz=2799  cliMHz=2799  71C
+glibc + jemalloc           ctxSw/5s=1400      reqPerSec=63306    thr=0/0/0/0    srvMHz=2799  cliMHz=2799  72C
+musl + mimalloc            ctxSw/5s=4726      reqPerSec=58938    thr=0/0/0/0    srvMHz=2799  cliMHz=2800  72C
+glibc + mimalloc           ctxSw/5s=3812      reqPerSec=62246    thr=0/0/0/0    srvMHz=2799  cliMHz=2800  74C
+
+-- round 4  start=60C  order=reversed
+glibc + mimalloc           ctxSw/5s=1949      reqPerSec=64096    thr=0/0/0/0    srvMHz=2800  cliMHz=2800  65C
+musl + mimalloc            ctxSw/5s=16721     reqPerSec=58282    thr=0/0/0/0    srvMHz=2799  cliMHz=2799  69C
+glibc + jemalloc           ctxSw/5s=906       reqPerSec=62757    thr=0/0/0/0    srvMHz=2800  cliMHz=2800  72C
+musl + jemalloc            ctxSw/5s=2637      reqPerSec=63726    thr=0/0/0/0    srvMHz=2800  cliMHz=2799  72C
+glibc malloc (default)     ctxSw/5s=844       reqPerSec=63978    thr=0/0/0/0    srvMHz=2800  cliMHz=2800  74C
+musl mallocng (default)    ctxSw/5s=26724     reqPerSec=54324    thr=0/0/0/0    srvMHz=2800  cliMHz=2800  74C
+
+-- round 5  start=59C  order=forward
+musl mallocng (default)    ctxSw/5s=31754     reqPerSec=54296    thr=0/0/0/0    srvMHz=2800  cliMHz=2799  63C
+glibc malloc (default)     ctxSw/5s=2120      reqPerSec=63849    thr=0/0/0/0    srvMHz=2800  cliMHz=2799  68C
+musl + jemalloc            ctxSw/5s=1230      reqPerSec=63643    thr=0/0/0/0    srvMHz=2799  cliMHz=2800  72C
+glibc + jemalloc           ctxSw/5s=1826      reqPerSec=64235    thr=0/0/0/0    srvMHz=2799  cliMHz=2799  72C
+musl + mimalloc            ctxSw/5s=3732      reqPerSec=59997    thr=0/0/0/0    srvMHz=2800  cliMHz=2799  72C
+glibc + mimalloc           ctxSw/5s=2052      reqPerSec=62805    thr=0/0/0/0    srvMHz=2799  cliMHz=2799  74C
+
+
+endTemp=61C  cumulative throttle: 1727 15030 40 17351 
+ALLOC6_DONE
