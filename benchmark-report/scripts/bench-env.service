@@ -1,0 +1,35 @@
+# Re-apply the benchmark environment after a reboot.
+#
+# Deliberately NOT enabled by default. These are poor settings for a laptop to sit in day to day: the
+# clock is pinned so the CPU never idles down, and the fan curve engages far earlier than stock.
+# Enable it only on a host whose job is running benchmarks.
+#
+#   install:  sudo cp bench-env.sh /usr/local/sbin/ && sudo cp bench-env.service /etc/systemd/system/
+#   enable:   sudo systemctl enable --now bench-env.service
+#   disable:  sudo systemctl disable --now bench-env.service   (leaves settings as they are)
+#   revert:   sudo /usr/local/sbin/bench-env.sh stop
+#
+# RemainAfterExit keeps the unit "active" after the oneshot finishes, so `systemctl stop` runs
+# ExecStop and actually restores stock behaviour rather than doing nothing.
+
+[Unit]
+Description=Pin CPU clock, thermal mode and profiling access for benchmarking
+# Docker matters here only because the readiness check counts foreign containers; ordering after it
+# means the check reports something meaningful rather than racing the daemon.
+After=multi-user.target docker.service
+Wants=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# Runs as root, so the script's `sudo -n` calls are no-ops rather than a second privilege hop.
+ExecStart=/usr/local/sbin/bench-env.sh start
+ExecStop=/usr/local/sbin/bench-env.sh stop
+# The script exits nonzero when the host is not ready, which is usually a foreign container rather
+# than a failure to apply anything. That should not mark the unit failed at boot.
+SuccessExitStatus=0 1
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
