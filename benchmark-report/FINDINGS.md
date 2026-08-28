@@ -46,12 +46,29 @@ work and are not accruing. Throttling is therefore a property of this host's his
 these measurements. The deltas are now recorded per cell, and a nonzero one tags the row as
 disqualified rather than merely caveated.
 
-**[SOLID] The governor has since been set to `performance`**, which removes most of the scaling
-freedom but **does not pin the clock uniformly**. Measured at idle under `performance`: 800 to
-4131 MHz across the eight logical CPUs. Under load it settles near 2800 MHz on both sides. So the
-right protocol is to sample `scaling_cur_freq` DURING the steady window, per side, and report the
-mean, rather than to assume a fixed clock. Cells taken before and after the governor change are not
-comparable and must not be combined into a ratio.
+**[SOLID] The answer is a capped clock, and neither stock governor provides it.** This supersedes
+what this section said earlier, which was that `performance` is the fix. It is not:
+
+| setting | behaviour |
+|---|---|
+| `powersave` (the DYNAMIC governor, despite its name) | ranges 800-4500 MHz; **36% throughput swing** between runs of the same cell |
+| `performance`, uncapped | **100 C in 30 seconds**, then throttles continuously, up to **533 events** in one measured cell |
+| `performance` with `min=max=62%` | **2593 MHz mean, 62 C, zero throttle events**, same throughput as `powersave` |
+
+Setting `performance` to remove frequency variance introduced thermal throttling instead: one
+uncontrolled variable traded for another. The capped configuration gives `powersave`'s throughput
+with a stable clock and no throttling.
+
+**Capping `max` alone is not enough.** With `max_perf_pct=62` and `min_perf_pct` still at 17,
+`intel_pstate` stays free to scale below the cap. A run taken that way spanned **65,767-101,292
+req/s**, a 54% spread, while the recorded per-side frequency moved only 2528-2752 MHz. The floor is
+what pins it.
+
+Cells taken under different clock policies are not comparable and must not be combined into a ratio.
+Full measurements, including the fan behaviour behind the 62% figure, are in
+[E1](tests/E1-thermal-and-fan-behaviour.md). The settings are now scripted rather than applied by
+hand: `benchmark-report/scripts/bench-env.sh` (start / stop / check), shipped as the `benchmark_env`
+role in the manergi/ansible repo.
 
 **[UNCERTAIN] The iowait-boost risk is still untested.** io_uring marks completion waiters
 `in_iowait` and `intel_pstate` feeds iowait into its boost heuristic, so the transports could still
