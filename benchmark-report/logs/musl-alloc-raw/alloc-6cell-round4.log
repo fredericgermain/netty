@@ -1,0 +1,25 @@
+== benchmark environment, thor, 2026-08-28T05:53:05+01:00
+  [32mOK[0m   dell thermal mode = Performance
+  [32mOK[0m   governor = performance on all cpus
+  [32mOK[0m   clock pinned at min=max=62%
+  [32mOK[0m   perf_event_paranoid = 1
+  [32mOK[0m   kptr_restrict = 0
+== observed state
+   package +47.0°C, fans 0/0 RPM
+   throttle counts c0-c3: 1727 15030 40 17351 
+   load 0.19 0.86 1.55
+  [32mOK[0m   no foreign containers
+
+== READY
+port=20410 conns=500 payload=1024 QUIC, server measured
+bench-tuning.service active; startTemp=54C
+
+glibc + mimalloc           ctxSw/5s=3444      reqPerSec=63591    thr=0/0/0/0    srvMHz=2800  cliMHz=2799  60C
+musl + mimalloc            ctxSw/5s=2538      reqPerSec=59860    thr=0/0/0/0    srvMHz=2799  cliMHz=2800  68C
+glibc + jemalloc           ctxSw/5s=2479      reqPerSec=65113    thr=0/0/0/0    srvMHz=2799  cliMHz=2799  74C
+musl + jemalloc            ctxSw/5s=4338      reqPerSec=61133    thr=0/0/0/0    srvMHz=2800  cliMHz=2800  78C
+glibc malloc (default)     ctxSw/5s=3100      reqPerSec=64804    thr=0/0/0/0    srvMHz=2800  cliMHz=2799  81C
+musl mallocng (default)    ctxSw/5s=28325     reqPerSec=53867    thr=0/0/0/0    srvMHz=2800  cliMHz=2800  82C
+
+endTemp=69C  cumulative throttle: 1727 15030 40 17351 
+ALLOC6_DONE

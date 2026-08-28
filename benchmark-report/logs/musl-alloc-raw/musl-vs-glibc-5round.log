@@ -1,0 +1,25 @@
+port=19990 conns=500 dur=10s rounds=5 payload=1024
+governor=performance max_perf_pct=62
+jar built against published 4.2.18.Final-20260827.083944-1
+
+r1 musl  default       rps=46241    err=0    allocB/req=884.9    thrDelta=0/0/0/0      srvMHz=2800 cliMHz=2800
+r1 glibc default       rps=57506    err=0    allocB/req=880.7    thrDelta=0/0/0/0      srvMHz=2800 cliMHz=2800
+r1 musl  prealloc      rps=50148    err=0    allocB/req=638.1    thrDelta=0/0/0/0      srvMHz=2799 cliMHz=2799
+r1 glibc prealloc      rps=57221    err=0    allocB/req=634.2    thrDelta=0/0/0/0      srvMHz=2799 cliMHz=2800
+r2 musl  default       rps=47195    err=0    allocB/req=887.0    thrDelta=0/0/0/0      srvMHz=2799 cliMHz=2800
+r2 glibc default       rps=55973    err=0    allocB/req=877.8    thrDelta=0/0/0/0      srvMHz=2799 cliMHz=2800
+r2 musl  prealloc      rps=49018    err=0    allocB/req=638.1    thrDelta=0/0/0/0      srvMHz=2800 cliMHz=2800
+r2 glibc prealloc      rps=62083    err=0    allocB/req=628.3    thrDelta=0/0/0/0      srvMHz=2799 cliMHz=2799
+r3 musl  default       rps=46098    err=0    allocB/req=884.9    thrDelta=0/0/0/0      srvMHz=2799 cliMHz=2800
+r3 glibc default       rps=55332    err=0    allocB/req=878.1    thrDelta=0/0/0/0      srvMHz=2799 cliMHz=2799
+r3 musl  prealloc      rps=50801    err=0    allocB/req=633.2    thrDelta=0/0/0/0      srvMHz=2800 cliMHz=2799
+r3 glibc prealloc      rps=57853    err=0    allocB/req=633.3    thrDelta=0/0/0/0      srvMHz=2799 cliMHz=2800
+r4 musl  default       rps=47168    err=0    allocB/req=886.4    thrDelta=0/0/0/0      srvMHz=2800 cliMHz=2800
+r4 glibc default       rps=56942    err=0    allocB/req=880.8    thrDelta=0/0/0/0      srvMHz=2799 cliMHz=2799
+r4 musl  prealloc      rps=47382    err=0    allocB/req=635.9    thrDelta=0/0/0/0      srvMHz=2800 cliMHz=2799
+r4 glibc prealloc      rps=57450    err=0    allocB/req=634.9    thrDelta=0/0/0/0      srvMHz=2800 cliMHz=2799
+r5 musl  default       rps=45865    err=0    allocB/req=887.7    thrDelta=0/0/0/0      srvMHz=2800 cliMHz=2799
+r5 glibc default       rps=53922    err=0    allocB/req=881.7    thrDelta=0/0/0/0      srvMHz=2799 cliMHz=2799
+r5 musl  prealloc      rps=51265    err=0    allocB/req=639.8    thrDelta=0/0/0/0      srvMHz=2799 cliMHz=2800
+r5 glibc prealloc      rps=57880    err=0    allocB/req=632.4    thrDelta=0/0/0/0      srvMHz=2800 cliMHz=2800
+MUSLQUIC2_DONE
