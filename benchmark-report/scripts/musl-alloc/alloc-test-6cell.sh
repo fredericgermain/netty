@@ -95,12 +95,37 @@ cell() {  # cell <image> <tag> <preload-or-empty>
 echo "port=$PORT conns=$CONNS payload=1024 QUIC, server measured"
 echo "bench-tuning.service active; startTemp=$(temp)C"
 echo
-cell "$IMG_GLIBC" "glibc + mimalloc"        "/usr/lib/x86_64-linux-gnu/libmimalloc.so.3"
-cell "$IMG_MUSL"  "musl + mimalloc"         "/usr/lib/libmimalloc.so.2"
-cell "$IMG_GLIBC" "glibc + jemalloc"        "/usr/lib/x86_64-linux-gnu/libjemalloc.so.2"
-cell "$IMG_MUSL"  "musl + jemalloc"         "/usr/lib/libjemalloc.so.2"
-cell "$IMG_GLIBC" "glibc malloc (default)"  ""
-cell "$IMG_MUSL"  "musl mallocng (default)" ""
+ROUNDS=${ROUNDS:-5}
+COOL_TO=${COOL_TO:-60}
+
+# Alternating order per round, because temperature climbs monotonically WITHIN a round: a fixed
+# sequence would confound cell position with the allocator under test. Cooling between rounds keeps
+# each round starting from the same thermal state rather than inheriting the last one's heat.
+forward() {
+  cell "$IMG_MUSL"  "musl mallocng (default)" ""
+  cell "$IMG_GLIBC" "glibc malloc (default)"  ""
+  cell "$IMG_MUSL"  "musl + jemalloc"         "/usr/lib/libjemalloc.so.2"
+  cell "$IMG_GLIBC" "glibc + jemalloc"        "/usr/lib/x86_64-linux-gnu/libjemalloc.so.2"
+  cell "$IMG_MUSL"  "musl + mimalloc"         "/usr/lib/libmimalloc.so.2"
+  cell "$IMG_GLIBC" "glibc + mimalloc"        "/usr/lib/x86_64-linux-gnu/libmimalloc.so.3"
+}
+reverse() {
+  cell "$IMG_GLIBC" "glibc + mimalloc"        "/usr/lib/x86_64-linux-gnu/libmimalloc.so.3"
+  cell "$IMG_MUSL"  "musl + mimalloc"         "/usr/lib/libmimalloc.so.2"
+  cell "$IMG_GLIBC" "glibc + jemalloc"        "/usr/lib/x86_64-linux-gnu/libjemalloc.so.2"
+  cell "$IMG_MUSL"  "musl + jemalloc"         "/usr/lib/libjemalloc.so.2"
+  cell "$IMG_GLIBC" "glibc malloc (default)"  ""
+  cell "$IMG_MUSL"  "musl mallocng (default)" ""
+}
+
+for r in $(seq 1 $ROUNDS); do
+  while [ "$(temp)" -ge "$COOL_TO" ]; do sleep 15; done
+  if [ $((r % 2)) -eq 1 ]; then dir=forward; else dir=reversed; fi
+  echo "-- round $r  start=$(temp)C  order=$dir"
+  if [ "$dir" = forward ]; then forward; else reverse; fi
+  echo
+done
+
 echo
 echo "endTemp=$(temp)C  cumulative throttle: $(thr)"
 echo ALLOC6_DONE

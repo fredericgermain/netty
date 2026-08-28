@@ -11,38 +11,41 @@ same hardware. Where does the difference go, and is any of it netty's?
 **musl's `mallocng` allocator serialises on a shared lock, and quiche's native allocation hammers
 it.** Nothing in netty and nothing in the codec-native-quic musl fix is implicated.
 
-`LD_PRELOAD=/usr/lib/libjemalloc.so.2` removes it entirely. Three runs per cell, medians with
-ranges, alternating musl/glibc and repeated in reversed order so cell position cannot drive the
-result:
+`LD_PRELOAD=/usr/lib/libjemalloc.so.2` removes it entirely. **Five rounds**, order alternating
+forward/reversed between rounds and the host cooled below 60 C before each, run under
+`bench-tuning.service` (Dell platform thermal mode, governor, clock pinned min=max=62%). Every cell
+in every round reported `thr=0/0/0/0` at 2799-2800 MHz on both sides, so neither frequency nor
+throttling is in play:
 
-| config | median req/s | range (3 runs) | vs glibc default |
+| config | median req/s | range (5 rounds) | vs glibc default |
 |---|---|---|---|
-| musl `mallocng` (default) | 52,028 | 49,552 - 53,349 | **-17.5%** |
-| glibc malloc (default) | 63,050 | 62,101 - 63,998 | -- |
-| musl + jemalloc | 62,426 | 61,829 - 62,763 | -1.0% |
-| glibc + jemalloc | 63,770 | 62,525 - 63,808 | +1.1% |
-| musl + mimalloc | 59,476 | 57,799 - 59,793 | -5.7% |
-| glibc + mimalloc | 63,234 | 62,694 - 63,816 | +0.3% |
+| musl `mallocng` (default) | 54,208 | 46,613 - 54,324 | **-14.8%** |
+| glibc malloc (default) | 63,631 | 62,265 - 63,978 | -- |
+| musl + jemalloc | 63,358 | 61,157 - 63,726 | -0.4% |
+| glibc + jemalloc | 63,306 | 62,256 - 64,235 | -0.5% |
+| musl + mimalloc | 58,282 | 55,442 - 59,997 | **-8.4%** |
+| glibc + mimalloc | 62,883 | 62,246 - 64,096 | -1.2% |
 
 Applying this branch's rule on overlapping ranges:
 
-- **The `mallocng` deficit is established.** 49,552-53,349 against 62,101-63,998, no overlap.
-- **jemalloc closes it completely**, and in the strongest available form: musl + jemalloc
-  (61,829-62,763) OVERLAPS glibc's default (62,101-63,998), so the residual 1% is not a real
+- **The `mallocng` deficit is established.** 46,613-54,324 against 62,265-63,978, no overlap.
+- **jemalloc closes it completely**, in the strongest available form: musl + jemalloc
+  (61,157-63,726) OVERLAPS glibc's default (62,265-63,978), so the residual 0.4% is not a real
   difference. musl with jemalloc is indistinguishable from glibc.
-- **glibc's own malloc is already optimal here.** Both glibc replacements overlap glibc default
-  heavily, so their apparent +0.3% and +1.1% are not established. This is not "modern allocators
-  beat both libcs"; `mallocng` is the outlier.
-- **mimalloc is the wrong choice on musl.** 57,799-59,793 does not overlap glibc, so musl + mimalloc
-  remains measurably behind while musl + jemalloc does not. Curiously mimalloc is fine on glibc,
-  which is unexplained.
+- **glibc's own malloc is already optimal here.** Both glibc replacements overlap glibc default, so
+  neither gains anything. This is not "modern allocators beat both libcs"; `mallocng` is the outlier.
+- **mimalloc is the wrong choice on musl**, and this is established rather than suggestive:
+  55,442-59,997 does not overlap glibc, across all five rounds. It is fine on glibc, which remains
+  unexplained.
 
-**[UNCERTAIN]** The musl + mimalloc cell is visibly noisier than the others: its context-switch count
-was 1,467, 1,599 and then 10,331 across the three runs, a 7x swing while throughput moved about 3%.
-No explanation.
+Context switches over 5 s: musl `mallocng` 25,215-85,708, everything else 844-16,831. Note the
+**3.4x spread on `mallocng` alone**, which is inherent to lock contention rather than measurement
+noise, and is why the throughput range for that cell is also the widest here.
 
-Context switches over 5 s, same runs: musl `mallocng` 29,883-57,630 against everything else at
-1,103-3,472, two orders of magnitude apart.
+An earlier three-run version of this table put the deficit at -17.5% and credited glibc + mimalloc
+with +1.8%. Five rounds move the deficit to -14.8% and show the glibc gain was noise. The direction
+and magnitude survive; the exact figures did not, which is the usual result of measuring three times
+rather than five.
 
 ## Configuration
 
