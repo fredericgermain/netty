@@ -11,17 +11,38 @@ same hardware. Where does the difference go, and is any of it netty's?
 **musl's `mallocng` allocator serialises on a shared lock, and quiche's native allocation hammers
 it.** Nothing in netty and nothing in the codec-native-quic musl fix is implicated.
 
-`LD_PRELOAD=/usr/lib/libjemalloc.so.2` removes almost all of it:
+`LD_PRELOAD=/usr/lib/libjemalloc.so.2` removes it entirely. Three runs per cell, medians with
+ranges, alternating musl/glibc and repeated in reversed order so cell position cannot drive the
+result:
 
-| config | ctx switches / 5 s | req/s | vs glibc |
+| config | median req/s | range (3 runs) | vs glibc default |
 |---|---|---|---|
-| musl, `mallocng` (default) | 29,883 | 53,737 | **-17.3%** |
-| musl + jemalloc | 1,103 | **64,149** | **-1.3%** |
-| musl + mimalloc | 1,465 | 60,644 | -6.7% |
-| glibc (control) | 851 | 64,997 | -- |
+| musl `mallocng` (default) | 52,028 | 49,552 - 53,349 | **-17.5%** |
+| glibc malloc (default) | 63,050 | 62,101 - 63,998 | -- |
+| musl + jemalloc | 62,426 | 61,829 - 62,763 | -1.0% |
+| glibc + jemalloc | 63,770 | 62,525 - 63,808 | +1.1% |
+| musl + mimalloc | 59,476 | 57,799 - 59,793 | -5.7% |
+| glibc + mimalloc | 63,234 | 62,694 - 63,816 | +0.3% |
 
-A 27x reduction in context switches, and the throughput gap goes from 17.3% to 1.3%. Two unrelated
-allocators both fix it, so this is not a property of one replacement.
+Applying this branch's rule on overlapping ranges:
+
+- **The `mallocng` deficit is established.** 49,552-53,349 against 62,101-63,998, no overlap.
+- **jemalloc closes it completely**, and in the strongest available form: musl + jemalloc
+  (61,829-62,763) OVERLAPS glibc's default (62,101-63,998), so the residual 1% is not a real
+  difference. musl with jemalloc is indistinguishable from glibc.
+- **glibc's own malloc is already optimal here.** Both glibc replacements overlap glibc default
+  heavily, so their apparent +0.3% and +1.1% are not established. This is not "modern allocators
+  beat both libcs"; `mallocng` is the outlier.
+- **mimalloc is the wrong choice on musl.** 57,799-59,793 does not overlap glibc, so musl + mimalloc
+  remains measurably behind while musl + jemalloc does not. Curiously mimalloc is fine on glibc,
+  which is unexplained.
+
+**[UNCERTAIN]** The musl + mimalloc cell is visibly noisier than the others: its context-switch count
+was 1,467, 1,599 and then 10,331 across the three runs, a 7x swing while throughput moved about 3%.
+No explanation.
+
+Context switches over 5 s, same runs: musl `mallocng` 29,883-57,630 against everything else at
+1,103-3,472, two orders of magnitude apart.
 
 ## Configuration
 
