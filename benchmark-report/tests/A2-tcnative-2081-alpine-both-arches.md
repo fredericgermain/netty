@@ -1,6 +1,8 @@
 # A2. tcnative 2.0.81 on Alpine, both architectures
 
-**Confidence:** SOLID, RECALLED
+**Confidence:** SOLID. The aarch64 half was `RECALLED` until 2026-11-14, when its raw output was
+recovered from an untracked directory and committed under `benchmark-report/jmh/gate/`. The
+`__getauxval` and `.init_array` mechanism is still a source reading rather than a measurement.
 **Date:** 2026-08-25 (matrix run in `x86run.log`); the aarch64 observations predate it and are undated
 **Question:** does released `netty-tcnative-boringssl-static` 2.0.81 load on Alpine/musl, and does the
 failure look the same on x86_64 and aarch64?
@@ -11,16 +13,21 @@ Released `netty-tcnative-boringssl-static` 2.0.81, shaded into the fixed microbe
 (`mb-released.jar`), run by `.github/scripts/tls-matrix/matrix.sh` in **gate** mode
 (`-f 1 -wi 1 -i 2`). Images: `eclipse-temurin:21-jdk` (glibc control),
 `eclipse-temurin:21-jdk-alpine` and `amazoncorretto:21-alpine` (musl). Native execution on thor
-(x86_64), not emulated. The aarch64 arm was run natively on aarch64 hardware; that run produced no
-log that survives in this branch.
+(x86_64), not emulated. The aarch64 arm was run natively on aarch64 hardware on 2026-08-20, five
+days earlier; its gate output is in `benchmark-report/jmh/gate/` (see the README there).
 
 ## Result
 
 - **x86_64: `library-load` failure.** Catchable `UnsatisfiedLinkError`;
   `ld-linux-x86-64.so.2` sits unresolved in `DT_NEEDED`.
-- **aarch64: `jvm-crash`.** Uncatchable SIGSEGV in `JVM_LoadLibrary`, via libgcc's outline-atomics
-  probe `init_have_lse_atomics` calling `__getauxval` from an `.init_array` constructor during
-  `dlopen`. musl does not export `__getauxval`.
+- **aarch64: it depends on the image, which this test originally missed.**
+  `eclipse-temurin:21-jdk-alpine` gives `failureMode: jvm-crash` with
+  `crashFrame: # C [libnetty_tcnative_linux_aarch_64….so+0x2476c] init_have_lse_atomics+0xc`, while
+  `amazoncorretto:21-alpine` gives a catchable `failureMode: library-load` naming
+  `netty_tcnative_linux_aarch_64`. Both are recorded in `jmh/gate/cmp-released/`, and `jmh/gate/mech/`
+  reproduces both. The crash frame is libgcc's outline-atomics probe; that it calls `__getauxval`
+  from an `.init_array` constructor during `dlopen`, and that musl does not export `__getauxval`, is
+  read from source rather than recorded here.
 
 What `x86run.log` shows verbatim for both musl images on the `boringssl` flavour:
 
@@ -47,11 +54,14 @@ Does **not** establish, from committed output:
 - the `ld-linux-x86-64.so.2` / `DT_NEEDED` mechanism. The string `ld-linux` does not appear anywhere
   in `x86run.log`. The mechanism is recalled from an `readelf`/`ldd` inspection whose output was not
   kept.
-- anything at all about aarch64. `x86run.log` is x86_64 only. The `jvm-crash` verdict,
-  `init_have_lse_atomics`, `__getauxval` and the `.init_array` timing are entirely recalled.
+- the `__getauxval` call and the `.init_array` timing on aarch64. `x86run.log` is x86_64 only, and
+  the recovered aarch64 files record `failureMode` and one crash frame, not a backtrace. The
+  `jvm-crash` verdict and `init_have_lse_atomics` are no longer recalled: both are in
+  `jmh/gate/cmp-released/eclipse-temurin-21-jdk-alpine__boringssl__gate.jsonl`.
 
-The architecture asymmetry is the point of the test and it is the half that is least well evidenced.
-Re-run the aarch64 arm and keep the log before publishing the severity claim.
+The architecture asymmetry is the point of the test, and it now has machine-written output on both
+sides. What changed on recovery is the claim itself: the asymmetry is not x86_64-catchable against
+aarch64-crashing, it is **per image on aarch64 too**. Any severity claim has to name the image.
 
 ## Raw data
 
@@ -59,7 +69,9 @@ Re-run the aarch64 arm and keep the log before publishing the severity claim.
   images` -- x86_64 evidence
 - `benchmark-report/scripts/thor-x86.sh` -- the driver
 - `.github/scripts/tls-matrix/matrix.sh`, `run.sh` -- the harness
-- **Missing:** any aarch64 run log; any `readelf -d` output showing the `DT_NEEDED` entry.
+- `benchmark-report/jmh/gate/` -- the aarch64 gate output, recovered 2026-11-14
+- **Missing:** any `readelf -d` output showing the `DT_NEEDED` entry; any aarch64 *backtrace* beyond
+  the single recorded crash frame.
 
 ## Caveats
 

@@ -24,7 +24,7 @@ Confidence tags are the same as in `FINDINGS.md`:
 | id | title | question | confidence | file |
 |---|---|---|---|---|
 | A1 | Microbench jar on Alpine | Does netty's shaded microbench jar run the SSL benchmarks at all? | SOLID, RECALLED | [A1](tests/A1-microbench-jar-on-alpine.md) |
-| A2 | tcnative 2.0.81 on Alpine, both arches | Does released boringssl-static load on musl, and does the failure differ by architecture? | SOLID, RECALLED | [A2](tests/A2-tcnative-2081-alpine-both-arches.md) |
+| A2 | tcnative 2.0.81 on Alpine, both arches | Does released boringssl-static load on musl, and does the failure differ by architecture? | SOLID; aarch64 log recovered 2026-11-14 | [A2](tests/A2-tcnative-2081-alpine-both-arches.md) |
 | A3 | openssl-dynamic as an Alpine workaround | Does the other flavour of the same released tcnative load where boringssl-static does not? | SOLID | [A3](tests/A3-openssl-dynamic-alpine-workaround.md) |
 | A4 | libc effect by tcnative flavour | Is the musl handshake penalty a property of musl or of one flavour? | SOLID | [A4](tests/A4-libc-effect-by-tcnative-flavour.md) |
 | A5 | Key exchange group sweep | Is BoringSSL's default TLS 1.3 group the post-quantum hybrid, and what does it cost? | SOLID | [A5](tests/A5-key-exchange-group-sweep.md) |
@@ -105,6 +105,7 @@ improvement to io_uring measured anywhere in this branch.
 | `logs/load.log`, `logs/load2.log` | two earlier partial attempts, both truncated |
 | `logs/reactor.log` | **a maven build log**, not a load test run. `microbench` jar, `BUILD SUCCESS`, 2026-08-25T12:41:21Z. |
 | `logs/x86run.log` | the full TLS matrix, released and patched -- [A2](tests/A2-tcnative-2081-alpine-both-arches.md), [A3](tests/A3-openssl-dynamic-alpine-workaround.md), [A8](tests/A8-negative-controls.md), [A10](tests/A10-patched-tcnative-matrix-gate.md) |
+| `jmh/gate/` | the aarch64 half of the same matrix, 2026-08-20, recovered 2026-11-14 -- [A2](tests/A2-tcnative-2081-alpine-both-arches.md) |
 | `logs/insight.log` | insight-mode console transcript -- [A4](tests/A4-libc-effect-by-tcnative-flavour.md) |
 | `logs/groups.log` | key exchange group sweep -- [A5](tests/A5-key-exchange-group-sweep.md), [A6](tests/A6-tls12-vs-tls13-group-controlled.md) |
 | `logs/jar-*.log` | four maven build logs for the four benchmark jar flavours, all `BUILD SUCCESS` |
@@ -161,8 +162,9 @@ whole physical cores. D1-D15 and D19 use the former; D16, D17, D18, D20 and D21 
   [D7](tests/D7-buffer-rings-at-1kb.md) and [D11](tests/D11-buffer-rings-at-64kb.md) are
   uninterpretable without it: a ring that never engaged and a ring that engaged without helping give
   the same numbers.
-- **The aarch64 arm of [A2](tests/A2-tcnative-2081-alpine-both-arches.md) has no committed log**, and
-  it carries the more severe half of that finding.
+- ~~The aarch64 arm of [A2](tests/A2-tcnative-2081-alpine-both-arches.md) has no committed log~~
+  **Recovered 2026-11-14** from an untracked directory and committed under `jmh/gate/`. It changed the
+  finding: the crash is per image, not per architecture.
 - **[A7](tests/A7-cloud-endpoint-negotiation.md) has no artifact at all.** One `openssl s_client`
   run, undated, client configuration unrecorded.
 - **Part B has no execution evidence**, only source evidence. `QuicMuslCheck.java` and `verify.sh`
@@ -186,8 +188,9 @@ The fragile parts, in order of fragility:
    a large share of the argument, rests on a single unrecorded run pair.
 2. **[A7](tests/A7-cloud-endpoint-negotiation.md).** One undated probe, no transcript, and it is
    exactly the kind of fact that changes. Re-run and capture it before publishing.
-3. **The remaining `[SOLID, RECALLED]` tags**: A1, A2 and A7. A2's aarch64 half and A1's four-bug
-   enumeration are the two worth recovering; both are cheap.
+3. **The remaining `[SOLID, RECALLED]` tags**: A1 and A7. A1's four-bug enumeration is worth
+   recovering and is cheap. A2 is no longer among them: its aarch64 half was recovered on 2026-11-14
+   and is in `jmh/gate/`.
 4. **thor itself.** Everything here is one machine, reachable over a VPN that dropped mid-session at
    least once. Kernel version (6.8.0-57-generic throughout; the host has since moved to 7.0.14),
    core count (4 physical, 8 logical) and SMT topology

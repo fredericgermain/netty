@@ -159,18 +159,26 @@ and the fix is one line of configuration.
 
 ## netty-tcnative 2.0.81 on Alpine
 
-**[SOLID, RECALLED]** The released artifact fails on Alpine/musl, and the failure mode depends on
-architecture in a way that changes how serious it is:
+**[SOLID]** The released artifact fails on Alpine/musl, and the failure mode depends on architecture
+*and on the image* in a way that changes how serious it is. The aarch64 half of this was
+`[SOLID, RECALLED]` until its gate output was recovered and committed under
+`benchmark-report/jmh/gate/`:
 
 - **x86_64: `library-load` failure.** `ld-linux-x86-64.so.2` sits in `DT_NEEDED`. musl never
   resolves it, the library does not load, and the application gets a catchable
   `UnsatisfiedLinkError`. Recoverable.
-- **aarch64: `jvm-crash`.** It loads, and then libgcc's outline-atomics probe
-  `init_have_lse_atomics` calls `__getauxval` from an `.init_array` constructor during `dlopen`.
-  musl does not export `__getauxval`. This is the one case musl's deferred-relocation behaviour does
-  not cover, so it is a SIGSEGV inside `JVM_LoadLibrary` and **uncatchable**.
+- **aarch64, `eclipse-temurin:21-jdk-alpine`: `jvm-crash`.** It loads, and then libgcc's
+  outline-atomics probe `init_have_lse_atomics` runs during `dlopen`. The recorded crash frame is
+  `# C [libnetty_tcnative_linux_aarch_64….so+0x2476c] init_have_lse_atomics+0xc`. That the probe
+  calls `__getauxval` from an `.init_array` constructor, and that musl does not export it, is read
+  from source: this is the one case musl's deferred-relocation behaviour does not cover, so the
+  SIGSEGV lands inside `JVM_LoadLibrary` and is **uncatchable**.
+- **aarch64, `amazoncorretto:21-alpine`: `library-load`.** Catchable, same shape as x86_64. The
+  severity does not follow the architecture alone.
 
-Testing one architecture and generalising gets the severity exactly wrong. That is the story.
+Testing one architecture and generalising gets the severity exactly wrong, and so does testing one
+image. That is the story -- and the second half of it only appeared when the raw output was
+recovered, three months after the claim was written.
 
 ## The mechanism worth explaining to readers
 

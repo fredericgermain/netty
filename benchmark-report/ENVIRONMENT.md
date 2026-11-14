@@ -157,9 +157,11 @@ belongs in the write-up rather than being quietly attributed to the workload.
 epoll 39,149 to 42,217 and io_uring 19,155 to 19,893: the same ~48% ratio. **musl is not a factor in
 the transport comparison.**
 
-**[SOLID, RECALLED]** It is very much a factor for native libraries. Released netty-tcnative 2.0.81
-fails on Alpine two different ways depending on architecture (catchable `UnsatisfiedLinkError` on
-x86_64, uncatchable SIGSEGV on aarch64). See `FINDINGS.md` article 2.
+**[SOLID]** It is very much a factor for native libraries. Released netty-tcnative 2.0.81 fails on
+Alpine in two different ways: a catchable `UnsatisfiedLinkError` on x86_64 and on
+`amazoncorretto:21-alpine`/aarch64, but an uncatchable SIGSEGV on
+`eclipse-temurin:21-jdk-alpine`/aarch64. The split is per image, not purely per architecture. See
+`FINDINGS.md` article 2 and `jmh/gate/`.
 
 **Rule**: run a glibc control before attributing anything to musl.
 
