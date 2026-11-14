@@ -103,7 +103,8 @@ That is now out of date in both directions: all eighteen are committed under
 - **Client and server share one 4-core machine.** Even under corrected pinning each side gets two
   physical cores, and they contend for last-level cache and memory bandwidth.
 - **Kernel 6.8.0-57-generic.** Predates send-zc buffer coalescing and send/recv bundles (6.10) and
-  `IORING_ENTER_NO_IOWAIT` (6.15).
+  `IORING_ENTER_NO_IOWAIT` (6.15). The host has since been upgraded to 7.0.14, which has all three;
+  no result here was taken on it.
 - **One netty version**, 4.2.18-SNAPSHOT. One JDK major, 21.
 - The harness reports the *client's* CPU counters on the `CLIENTCPU` line and the *server's* on
   `SERVERCPU`. Several early conclusions were withdrawn for reading a paired run's numbers as a

@@ -19,7 +19,9 @@ IMG_MUSL=alpine-jdk-musl-alloc
 IMG_GLIBC=glibc-jdk-alloc
 CONNS=500
 
-# Gate on bench-tuning.service rather than on hand-checked sysctls.
+# Gate on bench-tuning.service rather than on hand-checked sysctls. The unit and script source live
+# in ~/workspaces/fred/dell-xps-9500-bench-rig; this expects them already installed as
+# /etc/systemd/system/bench-tuning.service and /usr/local/sbin/bench-tuning.sh.
 #
 # The service pins Dell platform thermal mode, governor, clock min=max=62% and the perf sysctls, and
 # its `check` reports OK/FAIL per item plus temperature, fan RPM, throttle counts and whether a

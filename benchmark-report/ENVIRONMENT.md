@@ -65,8 +65,11 @@ measurement instead of an assumption. Frequency sat at 3.2 GHz and temperature a
 and put them in the result row. Without them you cannot distinguish thermal throttling, turbo
 residency and a real effect.
 
-**[UNCERTAIN]** The CPU governor was never checked or pinned on this host. It should be set to
-`performance` for benchmarking, and recorded either way.
+**This was later resolved.** The governor is now pinned with `performance` plus
+`min_perf_pct == max_perf_pct == 62`, near 2800 MHz, which is where this chassis runs all 8 cores
+with zero throttling. Capping `max` alone is not enough, and the measurements behind the figure are
+in `~/workspaces/fred/dell-xps-9500-bench-rig`, outside this repository because they characterise the
+host rather than netty.
 
 ### 1.4 Orphaned processes hold ports for hours
 
@@ -164,8 +167,8 @@ x86_64, uncatchable SIGSEGV on aarch64). See `FINDINGS.md` article 2.
 
 ## 3. The kernel
 
-**[SOLID]** Kernel version dominates io_uring results, and the test host at 6.8.0-57-generic is
-behind the features that matter:
+**[SOLID]** Kernel version dominates io_uring results, and the kernel every measurement in this
+repository was taken on, 6.8.0-57-generic, is behind the features that matter:
 
 | feature | lands in | consequence here |
 |---|---|---|
@@ -176,6 +179,11 @@ behind the features that matter:
 **Rule**: record `uname -r` in every result row, and never frame a kernel-feature-sensitive result as
 a property of the technology when it is a property of your kernel. Any io_uring size sweep should be
 repeated on 6.10 or newer before publication.
+
+**The host now runs 7.0.14, so that repeat is possible.** It was upgraded after these runs, which
+means every result here predates it and the three features above are now all present. Repeating the
+io_uring sweeps is the single highest-value open item in this repository, and it is no longer blocked
+on hardware.
 
 ---
 
@@ -376,7 +384,8 @@ Before trusting any run:
 
 - [ ] `thread_siblings_list` read; cpusets built from whole physical cores
 - [ ] `vmstat` idle and run queue checked, not load average
-- [ ] governor recorded (ideally `performance`)
+- [ ] governor recorded (ideally `performance`), via `bench-tuning.sh check` from
+      `~/workspaces/fred/dell-xps-9500-bench-rig`, which exits nonzero when the host is not ready
 - [ ] free port scanned; client wrapped in `timeout`
 - [ ] no other benchmark on the host
 - [ ] `seccomp=unconfined` if io_uring is involved

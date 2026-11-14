@@ -81,7 +81,7 @@ improvement to io_uring measured anywhere in this branch.
 
 | id | title | question | confidence | file |
 |---|---|---|---|---|
-| E1 | Thermal and fan behaviour | Is the cooling faulty, or is this chassis simply unable to sustain the load, and what clock policy should a benchmark run under? | SOLID for the fan and thermal measurements; core-count ceiling never completed | [E1](tests/E1-thermal-and-fan-behaviour.md) |
+| E1 | Thermal and fan behaviour | Is the cooling faulty, or is this chassis simply unable to sustain the load, and what clock policy should a benchmark run under? | SOLID. Moved to `~/workspaces/fred/dell-xps-9500-bench-rig`; the core-count ceiling was completed there | [E1](tests/E1-thermal-and-fan-behaviour.md) (stub) |
 
 ---
 
@@ -189,7 +189,8 @@ The fragile parts, in order of fragility:
 3. **The remaining `[SOLID, RECALLED]` tags**: A1, A2 and A7. A2's aarch64 half and A1's four-bug
    enumeration are the two worth recovering; both are cheap.
 4. **thor itself.** Everything here is one machine, reachable over a VPN that dropped mid-session at
-   least once. Kernel version (6.8.0-57-generic), core count (4 physical, 8 logical) and SMT topology
+   least once. Kernel version (6.8.0-57-generic throughout; the host has since moved to 7.0.14),
+   core count (4 physical, 8 logical) and SMT topology
    are all load-bearing for the io_uring results, and the SMT topology has already produced one
    documented methodology error.
 5. **The snapshot coordinates.** `netty-tcnative` 2.0.82.Final-SNAPSHOT and netty 4.2.18-SNAPSHOT can

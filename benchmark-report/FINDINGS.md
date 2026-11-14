@@ -16,8 +16,11 @@ you need to re-run first.
 | **[UNCERTAIN]** | Something specific is missing or was never pinned down. Stated explicitly each time. |
 | **[WITHDRAWN]** | Claimed earlier in the work, then disproved. Kept because the retraction is itself worth writing about. |
 
-Test host throughout is `thor`: 4 physical cores, 8 logical (SMT), Ubuntu, kernel 6.8.0-57-generic,
-62 GB. Containers are `eclipse-temurin:21-jdk-alpine` unless noted.
+Test host throughout is `thor`: 4 physical cores, 8 logical (SMT), Ubuntu, 62 GB. Containers are
+`eclipse-temurin:21-jdk-alpine` unless noted. **Every measurement here was taken on kernel
+6.8.0-57-generic.** That host has since been upgraded to 7.0.14, so nothing below should be re-read
+as current: see the kernel section of `ENVIRONMENT.md` for which results that invalidates and which
+it merely makes repeatable.
 
 ## The test host is a laptop CPU with frequency scaling left on, and it throttles
 
@@ -65,10 +68,11 @@ req/s**, a 54% spread, while the recorded per-side frequency moved only 2528-275
 what pins it.
 
 Cells taken under different clock policies are not comparable and must not be combined into a ratio.
-Full measurements, including the fan behaviour behind the 62% figure, are in
-[E1](tests/E1-thermal-and-fan-behaviour.md). The settings are now scripted rather than applied by
-hand: `benchmark-report/scripts/bench-env.sh` (start / stop / check), shipped as the `benchmark_env`
-role in the manergi/ansible repo.
+Full measurements, including the fan behaviour behind the 62% figure, now live outside this
+repository in `~/workspaces/fred/dell-xps-9500-bench-rig`, because they characterise the laptop
+rather than netty. [E1](tests/E1-thermal-and-fan-behaviour.md) is a stub pointing there. The settings
+are scripted rather than applied by hand: `bench-tuning.sh` (start / stop / check) in that
+repository, shipped as the `benchmark_env` role in the manergi/ansible repo.
 
 **[UNCERTAIN] The iowait-boost risk is still untested.** io_uring marks completion waiters
 `in_iowait` and `intel_pstate` feeds iowait into its boost heuristic, so the transports could still
