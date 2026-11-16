@@ -147,9 +147,21 @@ thing that can silently differ between two boots, and the whole value of one key
 that the image is byte-identical. Everything variable lives on `BENCHDATA`, where it can be
 inspected.
 
-Boot with **`toram`** on the kernel command line, so the session is RAM-resident and no state
-accumulates between the two machines. `BENCHDATA` is then the only thing that persists, which is
+Boot with **`toram systemd.unit=multi-user.target`** on the kernel command line. `toram` makes the
+session RAM-resident so no state accumulates between the two machines; `multi-user.target` stops
+GNOME ever starting, which matters more than it sounds on a 16 GB machine -- a desktop session is
+resident memory, background services and periodic wakeups on the cores under test, and none of it
+is doing anything for a benchmark. `BENCHDATA` is then the only thing that persists, which is
 deliberate: it holds the raw output, the docker graph and the jar.
+
+### Why the desktop image rather than something smaller
+
+| option | verdict |
+|---|---|
+| **Ubuntu desktop live** | What study 05 already booted on this 9380 with wi-fi working, so the firmware path is known-good on the exact hardware. Ships NetworkManager, which `usb-setup.sh` targets, and the full `linux-firmware` including the `ath10k` blobs the QCA6174 needs. Booted to `multi-user.target` its size costs RAM for the squashfs and nothing else. |
+| **Ubuntu server live** | Saves a few GB and is viable, but uses netplan and systemd-networkd rather than NetworkManager, so the wi-fi path in `usb-setup.sh` would have to be rewritten against `wpa_supplicant`, and its slimmer `linux-firmware` needs checking for `ath10k` rather than assumed. A rewrite of the one component that was singled out as must-work, to save space on a medium that has plenty. |
+| **netboot / PXE** | Ruled out. The 9380 has no Ethernet port and PXE cannot join a WPA2 network, so it needs a USB-C dongle and a netboot server. It also defeats the premise: an image fetched at boot is not a frozen environment, and pinning it to make it one is this key with extra steps. |
+| **Alpine from RAM** | Ruled out on evidence, 2026-11-16: `apk add libsmbios` installs the shared library and **no binaries**, so `smbios-thermal-ctl` does not exist there. That is the only fan lever this hardware exposes, and the two machines have to be in the same thermal mode to be compared. Alpine stays where it belongs, inside the container images. |
 
 In the session: `sudo /mnt/benchdata/scripts/usb-setup.sh`. It does Wi-Fi first, on purpose --
 package installation, result shipping and reaching the machine at all depend on it, and a session

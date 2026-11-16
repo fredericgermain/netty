@@ -155,8 +155,14 @@ cat <<EOF
 == done
    Key: $DEV, data partition $part labelled BENCHDATA
 
-   Boot it, adding 'toram' to the kernel command line (press 'e' at the GRUB entry on the
-   Ubuntu live menu and append it) so the session is RAM-resident.
+   Boot it, appending to the kernel command line (press 'e' at the GRUB entry on the Ubuntu
+   live menu):
+
+       toram systemd.unit=multi-user.target
+
+   toram makes the session RAM-resident. multi-user.target keeps GNOME from starting at all: a
+   desktop session on the machine under test is resident memory, background services and wakeups
+   on cores that are fully committed, and it does nothing for a benchmark.
 
    Then, in the live session:
      sudo mkdir -p /mnt/benchdata && sudo mount LABEL=BENCHDATA /mnt/benchdata
