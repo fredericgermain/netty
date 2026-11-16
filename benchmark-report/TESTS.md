@@ -106,6 +106,7 @@ improvement to io_uring measured anywhere in this branch.
 | `logs/reactor.log` | **a maven build log**, not a load test run. `microbench` jar, `BUILD SUCCESS`, 2026-08-25T12:41:21Z. |
 | `logs/x86run.log` | the full TLS matrix, released and patched -- [A2](tests/A2-tcnative-2081-alpine-both-arches.md), [A3](tests/A3-openssl-dynamic-alpine-workaround.md), [A8](tests/A8-negative-controls.md), [A10](tests/A10-patched-tcnative-matrix-gate.md) |
 | `jmh/gate/` | the aarch64 half of the same matrix, 2026-08-20, recovered 2026-11-14 -- [A2](tests/A2-tcnative-2081-alpine-both-arches.md) |
+| `logs/calibration.tsv` | the fixed-workload anchors that let results from two machines be compared at all -- see [REPLICATION.md](REPLICATION.md) |
 | `logs/insight.log` | insight-mode console transcript -- [A4](tests/A4-libc-effect-by-tcnative-flavour.md) |
 | `logs/groups.log` | key exchange group sweep -- [A5](tests/A5-key-exchange-group-sweep.md), [A6](tests/A6-tls12-vs-tls13-group-controlled.md) |
 | `logs/jar-*.log` | four maven build logs for the four benchmark jar flavours, all `BUILD SUCCESS` |

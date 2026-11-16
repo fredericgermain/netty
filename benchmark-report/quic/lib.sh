@@ -21,8 +21,12 @@ set -u
 
 IMG="${IMG:-eclipse-temurin:21-jdk}"          # glibc: the released QUIC native does not load on musl
 JAR="${JAR:-$HOME/quic/loadtest.jar}"
-SRV_CPUS=0,1,4,5                              # physical cores 0 and 1 with their SMT siblings
-CLI_CPUS=2,3,6,7                              # physical cores 2 and 3 with theirs
+# Cpusets, throttle-counter cores and the per-side frequency field positions are DERIVED from
+# thread_siblings_list rather than written here, because a hardcoded cpuset that is right on one
+# machine is a silent corruption on another, and these sweeps now have to run on two. On this host
+# the derivation yields exactly what was hardcoded before it: server 0,1,4,5 and client 2,3,6,7.
+# Override by exporting SRV_CPUS and CLI_CPUS before sourcing, which the derivation then respects.
+. "$(dirname "${BASH_SOURCE[0]}")/../scripts/topology.sh"
 SRV_NAME="${SRV_NAME:-q-srv}"
 CLI_NAME="${CLI_NAME:-q-cli}"
 CLIENT_OUT="${CLIENT_OUT:-/tmp/q-client-out.$$}"
@@ -85,16 +89,16 @@ udp_field() {   # udp_field <counter-line> <name>
 # two transports can therefore run the same work at different clocks. Interleaving rounds does not
 # average that away, so the frequency column is read per cell and not just per run.
 
-throttle_counts() {   # "c0 c1 c2 c3"
+throttle_counts() {   # one count per physical core, in core order
   local c
-  for c in 0 1 2 3; do
+  for c in $THROTTLE_CORES; do
     cat "/sys/devices/system/cpu/cpu$c/thermal_throttle/core_throttle_count" 2>/dev/null || echo 0
   done | tr '\n' ' '
 }
 
-throttle_delta() {   # throttle_delta "<before>" "<after>"  ->  d0/d1/d2/d3
+throttle_delta() {   # throttle_delta "<before>" "<after>"  ->  d0/d1/.. one per physical core
   local b=($1) a=($2) i out=""
-  for i in 0 1 2 3; do
+  for i in $(seq 0 $(( $(echo "$THROTTLE_CORES" | wc -w) - 1 ))); do
     out="$out${out:+/}$(( ${a[$i]:-0} - ${b[$i]:-0} ))"
   done
   echo "$out"
@@ -146,9 +150,11 @@ summarise_samples() {
           if (mx == "" || v > mx) mx = v
           sum += v; cnt++
         }
-        if (n >= 8) {
-          srv += f[1] + f[2] + f[5] + f[6]; srvn += 4
-          cli += f[3] + f[4] + f[7] + f[8]; clin += 4
+        # Field positions come from the topology derivation, not from this hosts layout.
+        {
+          ns = split(SRVF, sf, ","); nc = split(CLIF, cf, ",")
+          for (j = 1; j <= ns; j++) if (sf[j] <= n) { srv += f[sf[j]]; srvn++ }
+          for (j = 1; j <= nc; j++) if (cf[j] <= n) { cli += f[cf[j]]; clin++ }
         }
         if ($2 + 0 > tmax) tmax = $2 + 0
         if ($3 + 0 > fmax) fmax = $3 + 0
@@ -157,7 +163,7 @@ summarise_samples() {
         if (cnt == 0) { print "- - - - - - -"; exit }
         printf "%d %d %d %d %d %.1f %d\n", mn, mx, sum / cnt,
                (srvn ? srv / srvn : 0), (clin ? cli / clin : 0), tmax / 1000, fmax
-      }' "$1")
+      }' SRVF="$SRV_FIELDS" CLIF="$CLI_FIELDS" "$1")
   CELL_MHZ_MIN=$(echo "$s" | awk '{print $1}')
   CELL_MHZ_MAX=$(echo "$s" | awk '{print $2}')
   CELL_MHZ_MEAN=$(echo "$s" | awk '{print $3}')

@@ -725,6 +725,12 @@ relative to their per-read unit. That is weak evidence for the decay being a pro
 and loopback path rather than of any one transport, and it is the strongest reason yet to repeat the
 whole io_uring comparison on a second machine before publishing.
 
+**That repeat now has a protocol**: [REPLICATION.md](REPLICATION.md), written before the runs. The
+second machine is a Dell XPS 13 9380, and both it and thor boot the same USB key so that the kernel
+and the userland are fixed by construction and only the hardware differs. Note that the figures in
+this document were taken on kernel 6.8.0-57-generic and are therefore **not** the thor side of that
+comparison: thor is re-measured from the same key first.
+
 ## The measurement that had to be thrown away first, and why it matters
 
 **[WITHDRAWN]** The first attempt at this sweep produced 0.54x / 0.074x / 0.033x, which is within a
