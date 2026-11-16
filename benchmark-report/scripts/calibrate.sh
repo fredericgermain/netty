@@ -100,7 +100,12 @@ fingerprint() {
   # same host even on the same hardware.
   FP_ROOT=$(awk '$2 == "/" {print $3; exit}' /proc/mounts)
   FP_LIBC=$(docker run --rm "$IMG" sh -c 'ldd --version 2>&1 | head -1' 2>/dev/null | awk '{print $1}')
-  FP_NETTY=$(unzip -p "$JAR" META-INF/MANIFEST.MF 2>/dev/null | awk -F': ' '/Implementation-Version/ {print $2}' | tr -d '\r')
+  # From the bundled artifact rather than the manifest. The shade plugin writes no
+  # Implementation-Version: checked on a jar built 2026-11-16, whose manifest carries only
+  # Main-Class, Created-By and Build-Jdk-Spec, so the manifest would have put "?" in every row.
+  # This reads the netty that is actually inside the jar, which is what a later reader needs.
+  FP_NETTY=$(unzip -p "$JAR" META-INF/maven/io.netty/netty-transport/pom.properties 2>/dev/null | awk -F= '/^version=/ {print $2}' | tr -d '\r')
+  FP_JDK=$(unzip -p "$JAR" META-INF/MANIFEST.MF 2>/dev/null | awk -F': ' '/Build-Jdk-Spec/ {print $2}' | tr -d '\r')
 }
 
 main() {
@@ -113,13 +118,13 @@ main() {
   network_anchor || exit 1
 
   if [ ! -s "$OUT" ]; then
-    printf 'ts\tlabel\tcomputeMiBs\tcomputeSpread\tnetRps\tcpu\tphys\tlogical\tmemGB\tkernel\tgovernor\tminMaxPct\trootFs\tlibc\tnettyVersion\tsrvCpus\tcliCpus\timage\t%b\n' "$ENV_HEADER" > "$OUT"
+    printf 'ts\tlabel\tcomputeMiBs\tcomputeSpread\tnetRps\tcpu\tphys\tlogical\tmemGB\tkernel\tgovernor\tminMaxPct\trootFs\tlibc\tnettyVersion\tjarJdk\tsrvCpus\tcliCpus\timage\t%b\n' "$ENV_HEADER" > "$OUT"
   fi
   local row
-  row=$(printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s' \
+  row=$(printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s' \
     "$(date -Is)" "$LABEL" "$COMPUTE_MIBS" "$COMPUTE_SPREAD" "$NET_RPS" \
     "$FP_CPU" "$FP_PHYS" "$FP_LOGICAL" "$FP_MEM_GB" "$FP_KERNEL" "$FP_GOV" "$FP_PCT" \
-    "$FP_ROOT" "${FP_LIBC:-?}" "${FP_NETTY:-?}" "$SRV_CPUS" "$CLI_CPUS" "$IMG" "$(env_columns)")
+    "$FP_ROOT" "${FP_LIBC:-?}" "${FP_NETTY:-?}" "${FP_JDK:-?}" "$SRV_CPUS" "$CLI_CPUS" "$IMG" "$(env_columns)")
   echo "$row" >> "$OUT"
   echo "$row"
   echo "# appended to $OUT"

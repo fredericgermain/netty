@@ -35,6 +35,16 @@ mvn -nsu -Dmaven.repo.local=/tmp/m2 -f loadtest/pom.xml package -Dnative.classif
 `-nsu` keeps maven from re-checking the netty snapshot against the remote, which matters because
 the snapshot the pom pins is old enough that the repository may no longer carry it.
 
+And if it stops with `invalid target release: 11`, maven is running on a JDK older than 11. On this
+host `sdkman`'s `current` is Java 8 while 11, 21 and 25 are all installed system-wide, so the
+default `java` on the PATH cannot build this. Point it at the JDK the benchmark images use, which
+keeps the bytecode and the runtime on the same major version:
+
+```sh
+JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 mvn -f loadtest/pom.xml package \
+  -Dnative.classifier=linux-x86_64
+```
+
 ## Two phases, two modes
 
 **Phases.** `ramp` opens every connection and completes every TLS handshake, reporting
