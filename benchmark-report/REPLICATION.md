@@ -57,6 +57,29 @@ between them.** No `apt upgrade`, no image re-pull, no edit to the jar between t
 calibration anchors are what detect it if something does: an anchor that moves between the two
 machines by more than its own spread means the key changed, not the hardware.
 
+### The jar is built once, against a pinned netty
+
+`loadtest/` is a standalone pom rather than a module of the netty reactor, so it compiles against a
+**resolved** netty artifact and not against the working tree: `netty.version` is
+`4.2.18.Final-SNAPSHOT`. Two consequences worth stating, because both are easy to get wrong.
+
+First, rebasing this branch onto current 4.2 does not change what the jar measures. The jar and the
+checkout are independent, and a sweep run from a rebased branch still exercises whatever version the
+pom pins.
+
+Second, that version should stay at `4.2.18.Final-SNAPSHOT` for this exercise. The historical cells
+were measured against it, so holding it fixed leaves kernel and machine as the only differences.
+Bumping netty at the same time would add a third variable to a comparison designed to isolate one,
+and "io_uring improved" and "netty changed" would be indistinguishable in the result.
+
+Build it once with the command in `loadtest/README.md`:
+
+    ./mvnw -f loadtest/pom.xml package -Dnative.classifier=linux-x86_64
+
+then put that one file on the key and never rebuild it between machines. `calibrate.sh` reads
+`Implementation-Version` out of the jar manifest into every anchor row, so a jar that was swapped
+mid-exercise is visible afterwards rather than merely regrettable.
+
 ### Deriving the 9380 clock cap, before any cell on it counts
 
 `bench-usb.sh` refuses on that machine until a figure exists, and the figure has to be measured, not

@@ -11,6 +11,30 @@ Not a module of the netty reactor. Build it on its own:
 mvn -f loadtest/pom.xml package -Dnative.classifier=linux-x86_64
 ```
 
+Two consequences of being outside the reactor, both of which have cost time:
+
+- **`-pl loadtest` does not work.** The root pom does not list this directory, so maven answers
+  "Could not find the selected project in the reactor". Use `-f` as above.
+- **It compiles against a resolved netty artifact, not against the working tree.** `netty.version`
+  in `loadtest/pom.xml` is what it measures, currently `4.2.18.Final-SNAPSHOT`, so rebasing this
+  branch onto a newer 4.2 changes nothing about the jar. If you want the jar to exercise newer
+  netty, bump that property deliberately -- and if you are in the middle of a comparison, bumping it
+  adds a variable. See `benchmark-report/REPLICATION.md`.
+
+If the build stops with `resolver-status.properties (Permission denied)` under `~/.m2`, the local
+repository has root-owned files in it from some earlier build that ran as root -- 3,491 of them on
+this host as of 2026-11-16. Either `sudo chown -R "$USER" ~/.m2`, or build against a hard-linked
+copy, which needs no privileges because the directories in the copy are yours even though the
+artifacts are shared:
+
+```sh
+cp -al ~/.m2/repository/. /tmp/m2/
+mvn -nsu -Dmaven.repo.local=/tmp/m2 -f loadtest/pom.xml package -Dnative.classifier=linux-x86_64
+```
+
+`-nsu` keeps maven from re-checking the netty snapshot against the remote, which matters because
+the snapshot the pom pins is old enough that the repository may no longer carry it.
+
 ## Two phases, two modes
 
 **Phases.** `ramp` opens every connection and completes every TLS handshake, reporting
