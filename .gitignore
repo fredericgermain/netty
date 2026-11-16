@@ -55,3 +55,7 @@ mainframer
 # exclude file created by the flatten plugin
 .flattened-pom.xml
 .java-version
+
+# Holds a Wi-Fi PSK; the real file lives on the BENCHDATA partition, never in git.
+wifi.conf
+benchmark-report/scripts/wifi.conf

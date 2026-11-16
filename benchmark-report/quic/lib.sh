@@ -34,6 +34,41 @@ CLIENT_OUT="${CLIENT_OUT:-/tmp/q-client-out.$$}"
 # Set by run_client, read by the callers when they format a row.
 CELL_MHZ_MIN=- ; CELL_MHZ_MAX=- ; CELL_MHZ_MEAN=- ; CELL_TEMP_MAX=- ; CELL_THROTTLE=-
 CELL_SRV_MHZ=- ; CELL_CLI_MHZ=- ; CELL_FOREIGN=0 ; CELL_CONTENDED=no ; CELL_WAITED=no
+CELL_WIFI=-
+
+# ---------------------------------------------------------------- wireless, as a contaminant
+#
+# These sweeps run on loopback, so the wireless card is not in the data path -- but it is in the
+# machine. Its firmware wakes periodically to scan for roaming candidates, and on a 4-core laptop
+# with both sides of the comparison pinned there is no spare core for those interrupts to land on.
+# A scan inside a 10-second measured window is exactly the kind of event that produced a 36%
+# throughput swing between runs of the same cell under the old governor and was not understood for
+# days.
+#
+# It is not worth trying to eliminate: the link has to stay up to ship results and to reach the
+# machine at all. It is worth MEASURING, on the same principle as the throttle delta -- a cumulative
+# count says the card is sometimes busy, a delta across one cell says that cell was disturbed.
+#
+# The interrupt count is the sensitive signal. Packet counters miss a scan entirely, because probe
+# and beacon handling happens in firmware without reaching the interface statistics.
+WIFI_DEV=$(ls -d /sys/class/net/*/wireless 2>/dev/null | head -1 | awk -F/ "{print \$5}")
+WIFI_IRQ=$(awk -F: "/ath10k|iwlwifi|ath11k|mt79/ {gsub(/ /,\"\",\$1); print \$1; exit}" /proc/interrupts)
+
+wifi_counters() {   # "<irq total> <rx packets> <tx packets>"
+  local irq=0 rx=0 tx=0
+  [ -n "$WIFI_IRQ" ] && irq=$(awk -v i="$WIFI_IRQ:" "\$1 == i { s = 0; for (f = 2; f <= NF; f++) if (\$f ~ /^[0-9]+\$/) s += \$f; print s; exit }" /proc/interrupts)
+  if [ -n "$WIFI_DEV" ]; then
+    rx=$(cat "/sys/class/net/$WIFI_DEV/statistics/rx_packets" 2>/dev/null || echo 0)
+    tx=$(cat "/sys/class/net/$WIFI_DEV/statistics/tx_packets" 2>/dev/null || echo 0)
+  fi
+  echo "${irq:-0} ${rx:-0} ${tx:-0}"
+}
+
+wifi_delta() {   # wifi_delta "<before>" "<after>"  ->  irq/rx/tx, or - with no wireless
+  [ -n "$WIFI_DEV" ] || { echo -; return; }
+  local b=($1) a=($2)
+  echo "$(( ${a[0]:-0} - ${b[0]:-0} ))/$(( ${a[1]:-0} - ${b[1]:-0} ))/$(( ${a[2]:-0} - ${b[2]:-0} ))"
+}
 
 cleanup() {
   docker rm -f "$SRV_NAME" >/dev/null 2>&1 || true
@@ -309,9 +344,10 @@ start_server() {
 run_client() {
   local secs=$1; shift
   docker rm -f "$CLI_NAME" >/dev/null 2>&1 || true
-  local samples before after rc pid
+  local samples before after rc pid wbefore wafter
   samples=$(mktemp)
   before=$(throttle_counts)
+  wbefore=$(wifi_counters)
   sample_loop "$samples" &
   pid=$!
   timeout "$secs" docker run --name "$CLI_NAME" --network=host --cpuset-cpus=$CLI_CPUS \
@@ -322,6 +358,8 @@ run_client() {
   kill "$pid" 2>/dev/null || true
   wait "$pid" 2>/dev/null || true
   after=$(throttle_counts)
+  wafter=$(wifi_counters)
+  CELL_WIFI=$(wifi_delta "$wbefore" "$wafter")
   docker rm -f "$CLI_NAME" >/dev/null 2>&1 || true
   summarise_samples "$samples"
   CELL_THROTTLE=$(throttle_delta "$before" "$after")
@@ -345,12 +383,14 @@ field() {   # field <line> <key>   -- pulls key=value out of a harness output li
 
 # The columns every sweep appends to a row, in a fixed order so the TSVs stay comparable.
 env_columns() {
-  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s' \
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s' \
     "$CELL_MHZ_MIN" "$CELL_MHZ_MAX" "$CELL_MHZ_MEAN" "$CELL_SRV_MHZ" "$CELL_CLI_MHZ" \
-    "$CELL_TEMP_MAX" "$CELL_THROTTLE" "$CELL_CONTENDED" "$CELL_WAITED"
+    "$CELL_TEMP_MAX" "$CELL_THROTTLE" "$CELL_CONTENDED" "$CELL_WAITED" "$CELL_WIFI"
 }
 
-ENV_HEADER='mhzMin\tmhzMax\tmhzMean\tsrvMhz\tcliMhz\ttempMaxC\tthrottleDelta\tcontended\twaited'
+# wifiDelta is appended rather than inserted, so a TSV written before it existed still parses: the
+# aggregator indexes by header name and every file carries its own header.
+ENV_HEADER='mhzMin\tmhzMax\tmhzMean\tsrvMhz\tcliMhz\ttempMaxC\tthrottleDelta\tcontended\twaited\twifiDelta'
 
 # The line every sweep prints in its header, so a TSV records the machine state it was taken under
 # rather than leaving it to be recalled. The governor changed from powersave to performance partway

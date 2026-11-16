@@ -1,0 +1,20 @@
+# Copy to wifi.conf on the BENCHDATA partition. NEVER commit the real file: it holds a PSK.
+# usb-setup.sh reads it to bring the link up before anything else, because results shipping,
+# package installation and remote access all depend on it.
+
+SSID="your-ssid"
+PSK="your-passphrase"
+
+# Regulatory domain, as an ISO country code. This matters more than it looks on the 9380's QCA6174:
+# under the default world domain (00) most 5 GHz channels are passive-scan only, so association to a
+# 5 GHz AP can fail with no obvious error while 2.4 GHz works. Set it to where the machine actually
+# is.
+COUNTRY="GB"
+
+# Optional. Leave empty to let NetworkManager choose. Pinning the BSSID avoids roaming mid-sweep,
+# which shows up as a burst of firmware activity inside a measured window.
+BSSID=""
+
+# Optional: a host to ship results to between rounds, as user@host:/path. Shipping happens between
+# rounds and never inside a measured window.
+RESULTS_REMOTE=""

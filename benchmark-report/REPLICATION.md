@@ -42,11 +42,28 @@ the thor side of this comparison.
 
 The order is therefore:
 
-1. **thor, from the USB.** Re-establish the anchor cells. This is also the io_uring re-run that
-   `ENVIRONMENT.md` has been asking for, so it is not extra work.
-2. **9380, from the same USB.** The same cells.
-3. Compare 2 against 1. The 6.8 figures stay in the documents as history, clearly dated, and are
-   never differenced against either.
+1. **The 9380 first**, because it is the machine not in use, and because it is where the key own
+   problems will surface: the clock cap for it is unmeasured, its QCA6174 wireless has to come up
+   unattended, and 16 GB has to hold a RAM-resident root plus the image store. A shake-down run on a
+   free machine costs nothing; the same run on thor costs thor.
+2. **thor, from the same key.** This re-establishes the anchor cells on a 7.0.x kernel, which is
+   also the io_uring re-run `ENVIRONMENT.md` has been asking for, so it is not extra work.
+3. Compare the two. The 6.8 figures stay in the documents as history, clearly dated, and are never
+   differenced against either.
+
+Order does not affect validity here, which is the point of the single key: the environment is fixed
+by construction, so neither machine is privileged by going first. **But the key must not change
+between them.** No `apt upgrade`, no image re-pull, no edit to the jar between the two sets. The
+calibration anchors are what detect it if something does: an anchor that moves between the two
+machines by more than its own spread means the key changed, not the hardware.
+
+### Deriving the 9380 clock cap, before any cell on it counts
+
+`bench-usb.sh` refuses on that machine until a figure exists, and the figure has to be measured, not
+guessed. Run `sweeps/coresweep3.sh` from the `dell-xps-9500-bench-rig` repo, take the highest
+percentage whose throttle delta is zero on every core at 8 threads, and add it to the table in
+`bench-usb.sh` with the date. Expect well below thor 62%: that figure is a 45 W H-series part in a
+15-inch chassis with two fans, and this is a 15 W U-series part in a 13-inch chassis with one.
 
 ## The anchor cells
 
@@ -99,6 +116,50 @@ against, the difference is not established -- to the **ratio** rather than to th
 
 Record the outcome per cell before looking at the next cell, so the criterion cannot drift.
 
+## The key
+
+Built by `scripts/usb-build.sh`, which writes a stock Ubuntu live ISO to the device and adds a
+persistent `BENCHDATA` partition beside it. Nothing is remastered: a rebuilt squashfs is a second
+thing that can silently differ between two boots, and the whole value of one key on two machines is
+that the image is byte-identical. Everything variable lives on `BENCHDATA`, where it can be
+inspected.
+
+Boot with **`toram`** on the kernel command line, so the session is RAM-resident and no state
+accumulates between the two machines. `BENCHDATA` is then the only thing that persists, which is
+deliberate: it holds the raw output, the docker graph and the jar.
+
+In the session: `sudo /mnt/benchdata/scripts/usb-setup.sh`. It does Wi-Fi first, on purpose --
+package installation, result shipping and reaching the machine at all depend on it, and a session
+that quietly has no network wastes the boot.
+
+## Wi-Fi is both a prerequisite and a contaminant
+
+**As a prerequisite**: the 9380 carries a Qualcomm Atheros QCA6174 on `ath10k_pci`, whose firmware is
+in `linux-firmware` and present on the live image, so this is known to work on that machine. The
+failure modes that do bite are elsewhere, and `usb-setup.sh` checks each: a soft rfkill block after
+boot, firmware that loaded and then crashed, and a world regulatory domain (`00`) under which most
+5 GHz channels are passive-scan only, so association to a 5 GHz AP fails with no obvious error while
+2.4 GHz works. Credentials come from `wifi.conf` on the key, written into a NetworkManager keyfile at
+mode 600 so the PSK never reaches the process table. The script waits for an actual IPv4 lease rather
+than trusting "connected", and stops if there is none.
+
+**As a contaminant**: these cells run on loopback, so the card is not in the data path -- but it is
+in the machine, and its firmware wakes periodically to look for roaming candidates. With four
+physical cores and both sides of the comparison pinned, there is no spare core for those interrupts
+to land on. Measured on thor on 2026-11-16, two seconds of an idle link absorbed **435 received
+packets and 5 interrupts**, so a ten-second window takes on roughly two thousand packets of work on
+cores that are fully committed.
+
+This is not worth eliminating, because the link has to stay up. It is worth measuring, so
+`lib.sh` now records a `wifiDelta` column per cell as `irq/rx/tx`, on the same principle as the
+throttle delta: a cumulative count says the card is sometimes busy, a delta across one cell says
+that cell was disturbed. Mitigations applied by `usb-setup.sh` are power save off at both the
+NetworkManager and the driver level, a pinned BSSID if `wifi.conf` sets one so the card does not roam
+mid-sweep, and the card interrupt steered onto the client cpus -- mitigation rather than a fix, since
+the client is merely the less sensitive half.
+
+Results ship **between rounds, never inside a measured window.**
+
 ## Before measuring on either machine
 
 `scripts/bench-usb.sh check` gates all of this and exits nonzero when the host is not ready. It
@@ -118,4 +179,6 @@ Known prerequisites, each of which has already bitten this work once:
   `SO_BACKLOG` the sweeps request, which truncates the accept queue silently.
 - **`RESULTS_DIR` on persistent storage.** Nothing in a RAM-resident session survives a reboot, and
   section 7.3 of `ENVIRONMENT.md` exists because numbers have already reached documents here without
-  their raw record.
+  their raw record. `usb-setup.sh` points it at `BENCHDATA/results`, on the key itself.
+- **A cell whose `wifiDelta` is far above the others is suspect**, and should be re-run rather than
+  averaged in with a footnote.
