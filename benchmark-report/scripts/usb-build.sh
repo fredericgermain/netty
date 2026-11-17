@@ -23,10 +23,11 @@ WIFI_SRC="${WIFI_SRC:-}"
 
 # The images the cells need. Saved from this host rather than pulled on the target, so the two
 # machines run byte-identical images and neither depends on a registry mid-sweep.
-#   temurin:21-jdk         glibc; the QUIC sweeps' default
-#   temurin:21-jdk-alpine  musl; what the TCP and TLS sweeps have always used
-#   bench-cclient:local    the C client for cell C, built from c-control/Dockerfile
-IMAGES="${IMAGES:-eclipse-temurin:21-jdk eclipse-temurin:21-jdk-alpine}"
+#   temurin:21-jdk          glibc; the QUIC sweeps' default
+#   temurin:21-jdk-alpine   musl; what the TCP and TLS sweeps have always used
+#   iouring-control:latest  cell C's client, echo_bench_stock from pinned upstream SHAs. Build it
+#                           with: docker build --network=host -t iouring-control:latest c-control/
+IMAGES="${IMAGES:-eclipse-temurin:21-jdk eclipse-temurin:21-jdk-alpine iouring-control:latest}"
 DEBS="libsmbios-bin iw ethtool jq unzip"
 
 while [ $# -gt 0 ]; do
@@ -131,10 +132,12 @@ if docker info >/dev/null 2>&1; then
       echo "   MISSING locally: $ref -- docker pull it first, or the target has to pull it over wi-fi"
     fi
   done
-  # Cell C needs the C client. It is built here rather than pulled, so record how.
-  if [ -f "$REPO/benchmark-report/c-control/Dockerfile" ]; then
-    echo "   note: cell C's C client image builds from benchmark-report/c-control/Dockerfile;"
-    echo "         build and add it with IMAGES=\"... bench-cclient:local\" once it exists locally"
+  # Cell C cannot run without iouring-control, and a key that is missing it fails on the second
+  # machine rather than here, which is the expensive place to find out.
+  if ! docker image inspect iouring-control:latest >/dev/null 2>&1; then
+    echo "   WARNING: iouring-control:latest is not built, so cell C has no client."
+    echo "            docker build --network=host -t iouring-control:latest \\"
+    echo "              $REPO/benchmark-report/c-control/"
   fi
 else
   echo "   docker is not running on this host, so no images were saved."
