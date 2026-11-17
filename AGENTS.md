@@ -52,3 +52,7 @@ Do not reimplement CI checks by hand. Run the right build command instead. Envir
 - Use JUnit 5 and AssertJ for writing tests.
 - Don't use mocking unless existing tests for the class already do so, or it would introduce _significant_ complexity to avoid.
 - Avoid sleeps in tests if at all possible, avoid sizing test resources off `NettyRuntime.availableProcessors()`, and avoid asserting on elapsed time.
+
+## This fork: benchmark work
+
+- `benchmark-report/` holds measurement work that is not upstream netty (Alpine/musl, TLS, io_uring, QUIC). See `benchmark-report/AGENTS.md` for its layout, its harness scripts and the rules a run has to follow. `loadtest/` is its load generator, built standalone -- see `loadtest/README.md`.
