@@ -18,6 +18,7 @@ netty material. Read `FINDINGS.md` for conclusions, `TESTS.md` for the evidence 
 | `scripts/bench-usb.sh` | readiness gate for a live session, per-machine clock caps | `check` before measuring, on any host |
 | `scripts/usb-build.sh` | writes the replication USB key | destructive; needs `--yes` and a removable device |
 | `scripts/usb-setup.sh` | brings a booted live session up, wi-fi first | once per boot |
+| `c-control/IMAGE-PROVENANCE.md` | what is inside `iouring-control:latest`, the C client cell C runs | before trusting or rebuilding cell C |
 | `jmh/`, `logs/`, `c-control/`, `quic/`, `tests/` | raw output and per-area harnesses | |
 
 Host characterisation (fan curves, core sweeps, `bench-tuning.sh`) lives outside this repo in

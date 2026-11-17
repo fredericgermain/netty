@@ -42,8 +42,12 @@ step "wi-fi"
 . "$WIFI_CONF"
 [ -n "${SSID:-}" ] && [ -n "${PSK:-}" ] || die "$WIFI_CONF must set SSID and PSK"
 
-WDEV=$(iw dev 2>/dev/null | awk '/Interface/ {print $2; exit}')
-[ -n "$WDEV" ] || die "no wireless interface. Check: lspci -k | grep -A3 -i network"
+# From sysfs, not from `iw`. This step runs before package installation by design, so it cannot
+# assume `iw` is installed -- and if it were missing, deriving the interface would have failed and
+# taken the whole wi-fi step with it, on a machine where finding that out costs a trip.
+WDEV=$(for d in /sys/class/net/*/wireless; do [ -e "$d" ] && basename "$(dirname "$d")" && break; done)
+[ -n "$WDEV" ] || WDEV=$(iw dev 2>/dev/null | awk '/Interface/ {print $2; exit}')
+[ -n "$WDEV" ] || die "no wireless interface in /sys/class/net/*/wireless. Check: lspci -k | grep -A3 -i network"
 
 # Firmware actually loaded, rather than merely a driver bound.
 if dmesg 2>/dev/null | grep -qiE 'ath10k.*(failed|crashed|unsupported)'; then
@@ -54,8 +58,18 @@ else
   ok "${fw:-ath10k bound}, interface $WDEV"
 fi
 
-rfkill unblock wifi 2>/dev/null || true
-[ -n "${COUNTRY:-}" ] && iw reg set "$COUNTRY" 2>/dev/null && ok "regulatory domain $COUNTRY"
+command -v rfkill >/dev/null 2>&1 && { rfkill unblock wifi 2>/dev/null || true; }
+# The regulatory domain is not cosmetic here. thor associates on 5180 MHz (channel 36, UNII-1) and
+# its regdomain reads 00; Intel tolerates that, but this QCA6174 is the card most likely to refuse a
+# no-IR channel under the world domain, which presents as "connected, no lease" or as silence while
+# 2.4 GHz works. If `iw` is absent this is skipped and said so, rather than silently not happening.
+if [ -n "${COUNTRY:-}" ]; then
+  if command -v iw >/dev/null 2>&1; then
+    iw reg set "$COUNTRY" 2>/dev/null && ok "regulatory domain $COUNTRY"
+  else
+    bad "iw not installed, regulatory domain left at $(cat /sys/module/cfg80211/parameters/ieee80211_regdom 2>/dev/null || echo unknown); 5 GHz association may fail"
+  fi
+fi
 
 # A NetworkManager keyfile rather than nmcli-on-the-command-line, so the PSK never reaches the
 # process table or the shell history, and so the profile survives a NetworkManager restart.
@@ -100,11 +114,19 @@ for _ in $(seq 1 30); do
   [ -n "$ip4" ] && break
   sleep 1
 done
-[ -n "$ip4" ] || { bad "associated=$(iw dev "$WDEV" link | head -1), no IPv4 lease after 30s"; die "wi-fi did not come up; fix before measuring, results cannot leave this session without it"; }
-ok "$WDEV has $ip4, AP $(iw dev "$WDEV" link | awk '/Connected to/ {print $3}'), $(iw dev "$WDEV" link | awk '/freq/ {print $2" MHz"}')"
+[ -n "$ip4" ] || { bad "no IPv4 lease after 30s; carrier=$(cat /sys/class/net/$WDEV/carrier 2>/dev/null || echo ?), operstate=$(cat /sys/class/net/$WDEV/operstate 2>/dev/null || echo ?)"; die "wi-fi did not come up; fix before measuring, results cannot leave this session without it"; }
+if command -v iw >/dev/null 2>&1; then
+  ok "$WDEV has $ip4, AP $(iw dev "$WDEV" link | awk '/Connected to/ {print $3}'), $(iw dev "$WDEV" link | awk '/freq/ {print $2" MHz"}')"
+else
+  ok "$WDEV has $ip4 (install iw for AP and frequency detail)"
+fi
 
 # Powersave off at the driver level too, independent of what NetworkManager believes.
-iw dev "$WDEV" set power_save off 2>/dev/null && ok "power_save off on $WDEV" || bad "could not disable power_save"
+if command -v iw >/dev/null 2>&1; then
+  iw dev "$WDEV" set power_save off 2>/dev/null && ok "power_save off on $WDEV" || bad "could not disable power_save"
+else
+  bad "iw not installed yet; power_save not disabled. Re-run this script after the package step."
+fi
 
 # Steer the card's interrupts to the client side. With four physical cores and both sides pinned
 # there is no idle core to park them on, so this is mitigation and not a fix: the client half of a
@@ -125,7 +147,8 @@ fi
 
 # ---------------------------------------------------------------- 2. packages
 step "packages"
-need="libsmbios-bin iw ethtool jq unzip linux-tools-common"
+need="libsmbios-bin iw ethtool jq unzip"
+optional="linux-tools-common linux-tools-generic"
 missing=""
 for p in $need; do dpkg -s "$p" >/dev/null 2>&1 || missing="$missing $p"; done
 command -v docker >/dev/null 2>&1 || missing="$missing docker.io"
@@ -144,6 +167,7 @@ if [ -n "$missing" ]; then
   fi
 fi
 for p in $need; do dpkg -s "$p" >/dev/null 2>&1 && ok "$p" || bad "$p MISSING"; done
+for p in $optional; do dpkg -s "$p" >/dev/null 2>&1 && ok "$p (optional)" || warn "$p absent; perf profiling unavailable, anchor cells unaffected"; done
 # libsmbios is the only fan lever this hardware exposes, and without it both machines sit on the
 # stock curve, which leaves the fans at 0 RPM until about 97 C.
 command -v smbios-thermal-ctl >/dev/null 2>&1 && ok "smbios-thermal-ctl available" || bad "smbios-thermal-ctl MISSING: the two machines cannot be put in the same thermal mode"
