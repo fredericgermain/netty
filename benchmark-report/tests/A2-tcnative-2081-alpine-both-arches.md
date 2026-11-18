@@ -78,8 +78,15 @@ aarch64-crashing, it is **per image on aarch64 too**. Any severity claim has to 
 - Gate mode is `-f 1 -wi 1 -i 2`. It is a pass/fail instrument. No score from this run should be
   quoted with confidence.
 - One tcnative version (2.0.81), one BoringSSL flavour, three images.
-- The musl reserved-name mechanism (`ldso/dynlink.c`, `reserved[] = "c.pthread.rt.m.dl.util.xnet."`)
-  quoted in `FINDINGS.md` is a source reading, not a measurement.
+- The musl reserved-name mechanism quoted in `FINDINGS.md` is a source reading, not a measurement.
+  It was read back against upstream musl at `64f05291ff99` on 2026-11-18 and holds:
+  `ldso/dynlink.c:1075-1090` carries `reserved[] = "c.pthread.rt.m.dl.util.xnet."` behind a
+  `name[0..2] == "lib"` gate, and a match resolves to the already-loaded ldso. The same reading
+  **corrected** the claim beside it: musl defers an unresolvable relocation only under lazy binding
+  and only for PLT/GOT relocations (`dynlink.c:437-449`); otherwise it reports
+  `Error relocating ...: symbol not found` and `longjmp`s out, failing the `dlopen`. So the x86_64
+  severity does not need deferral to explain it, and the mechanism for the aarch64 half is still
+  inferred -- which is what the two missing artifacts above would settle.
 
 ## Related
 

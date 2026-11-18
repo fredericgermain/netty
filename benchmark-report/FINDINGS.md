@@ -110,7 +110,7 @@ and has nothing to do with Alpine or io_uring.
 
 ## BoringSSL defaults to a post-quantum hybrid key exchange, and it costs about a third
 
-**[SOLID, RECALLED]** With everything else held fixed and only the key exchange group varied:
+**[SOLID]** With everything else held fixed and only the key exchange group varied:
 
 | group | score |
 |---|---|
@@ -145,20 +145,24 @@ right now, and if your client is modern too then your "TLS 1.3" measurement incl
 
 ## Which means the standard "TLS 1.3 vs TLS 1.2" comparison is two effects stacked
 
-**[SOLID, RECALLED]**
+**[SOLID]**
 
 | comparison | TLS 1.2 | TLS 1.3 | gap |
 |---|---|---|---|
 | each side's own default group | 804.2 +/- 16.9 | 1346.3 +/- 11.1 | **+67%** |
 | X25519 pinned on both sides | 769.8 +/- 11.8 | 1004.0 +/- 12.2 | **+30%** |
+| P-256 pinned on both sides | 778.4 +/- 13.4 | 985.4 +/- 6.3 | **+27%** |
 
 Roughly half of the apparent 67% penalty is the post-quantum group and roughly half is a real
 protocol-version difference. Anyone comparing the two without pinning the group is reporting the
-first row while believing they are reporting the second.
+first row while believing they are reporting the second. Two independently chosen classical groups
+agree on the controlled gap -- +30% and +27% -- which is what makes the decomposition trustworthy.
+Verified against `logs/groups.log` and the committed JSONL under `jmh/insight-bssl/`.
 
 **The article angle**: "if you benchmarked TLS 1.3 this year you may have been measuring
 post-quantum crypto". It is true, it is checkable by the reader in one `openssl s_client` command,
-and the fix is one line of configuration.
+and the fix is one line of configuration. `scripts/endpoint-probe.sh` is that command, with the
+client offer recorded alongside the answer.
 
 ---
 
@@ -189,15 +193,52 @@ recovered, three months after the claim was written.
 
 ## The mechanism worth explaining to readers
 
-**[SOLID, RECALLED]** musl reserves a set of `DT_NEEDED` names it satisfies internally and never
-looks up on disk: `ldso/dynlink.c` has `reserved[] = "c.pthread.rt.m.dl.util.xnet."`. A name that
-does not start with `lib` can never resolve. And musl *defers* unresolvable relocations rather than
-failing `dlopen`, which is why the x86_64 case is survivable at all, and why the aarch64 case is
-not: a constructor running during `dlopen` cannot defer.
+**[SOLID]** musl aliases a set of `DT_NEEDED` names to the dynamic linker itself and never looks
+them up on disk. `ldso/dynlink.c:1075-1090`, upstream musl at `64f05291ff99`, the last commit to
+touch that file (read 2026-11-18; sha256 of the blob begins `06d17677cd210a5c`):
+
+```c
+	/* Catch and block attempts to reload the implementation itself */
+	if (name[0]=='l' && name[1]=='i' && name[2]=='b') {
+		static const char reserved[] =
+			"c.pthread.rt.m.dl.util.xnet.";
+```
+
+A match sets `is_self = 1`, so the request resolves to the already-loaded ldso. Note the gate: the
+shortcut applies **only** to names beginning `lib`, and the suffix is compared against `name+3`.
+A name that is not `lib{c,pthread,rt,m,dl,util,xnet}.*` is not aliased and is searched for on disk
+like any other library.
+
+**Correction:** an earlier version of this section said musl "*defers* unresolvable relocations
+rather than failing `dlopen`". That is true only under lazy binding. `dynlink.c:437-449`:
+
+```c
+	if (!def.sym && (sym->st_shndx != SHN_UNDEF
+	    || sym->st_info>>4 != STB_WEAK)) {
+		if (dso->lazy && (type==REL_PLT || type==REL_GOT)) {
+			...                      /* queued in dso->lazy, resolved on first call */
+			continue;
+		}
+		error("Error relocating %s: %s: symbol not found",
+			dso->name, name);
+		if (runtime) longjmp(*rtld_fail, 1);
+```
+
+So deferral needs `dso->lazy` set *and* a PLT or GOT relocation. Otherwise musl reports
+`Error relocating ...: symbol not found` and, at runtime, `longjmp`s out -- which fails the `dlopen`
+and is exactly what surfaces in Java as a catchable `UnsatisfiedLinkError`.
+
+**[UNCERTAIN]** Which means the x86_64-vs-aarch64 severity split does not need deferral to explain
+it, and the mechanism behind it is still inferred rather than instrumented. The shape that fits the
+observations is: x86_64 fails the `dlopen` itself, so the JVM throws and the caller can catch;
+aarch64 gets far enough to run a constructor during `dlopen`, and a SIGSEGV inside `JVM_LoadLibrary`
+is not a Java exception. [A2](tests/A2-tcnative-2081-alpine-both-arches.md) records what is missing
+to settle it: no `readelf -d` output showing the offending `DT_NEEDED` entry, and no aarch64
+backtrace beyond a single frame. Capture both before publishing a mechanism.
 
 ## openssl-dynamic loads where boringssl-static does not
 
-**[SOLID, RECALLED]** On released 2.0.81, x86_64 only, `openssl-dynamic` loads on Alpine and reports
+**[SOLID]** On released 2.0.81, x86_64 only, `openssl-dynamic` loads on Alpine and reports
 OpenSSL 3.5.7 once `apr` and `openssl` are in the image. The flavour most people reach for first
 (`boringssl-static`) is the broken one, and a workaround exists today that nobody documents.
 
@@ -206,7 +247,7 @@ x86_64 only.
 
 ## The musl handshake penalty belongs to openssl-dynamic, not to musl
 
-**[SOLID, RECALLED]** This is the counterintuitive one and it is a good article beat.
+**[SOLID]** This is the counterintuitive one and it is a good article beat.
 
 | flavour | glibc | musl |
 |---|---|---|
@@ -533,11 +574,13 @@ killed by a cheap measurement.
 1. **Completion queue too small.** **[WITHDRAWN]** A run showing 578 req/s against epoll's 168,789
    also logged "CompletionQueue overflow detected, consider increasing size: 4096" and I briefly
    claimed a 292x effect. Sweeping 4096 / 16384 / 32768 gave 127,590 / 127,014 / 125,817, which is no
-   difference at all **[SOLID, RECALLED]**. The real cause was two of my own runs colliding on the
-   same port and cores. The overflow warning was a symptom of the contention, not its cause.
-2. **Garbage collection.** **[SOLID, RECALLED]** Falsified. GC pause time is flat and uncorrelated
-   with throughput: `gcMs` between 71 and 99 while throughput swung 70k to 116k, and the slowest TLS
-   round had the *lowest* GC time.
+   difference at all **[SOLID]**, verified against `logs/load4.log` section A. The real cause was
+   two of my own runs colliding on the same port and cores. The overflow warning was a symptom of
+   the contention, not its cause.
+2. **Garbage collection.** **[SOLID]** Falsified. GC pause time is flat and uncorrelated
+   with throughput: across the TLS rounds `gcMs` ran 71 to 97 while throughput swung 77k to 116k,
+   and the slowest TLS round had the *lowest* GC time. Verified against `logs/q3.log`. The earlier
+   range "71 to 99" was the span across both workloads: 99 is an io_uring *plaintext* round.
 3. **Buffer rings and multishot recv.** **[SOLID]** No effect at 1 KB. At 64 KB a real but tiny +5%
    (18,702 to 19,680, non-overlapping across three rounds). **[UNCERTAIN]** This result is now
    suspect: enabling a ring should delete the POLL_ADD round trip entirely, so +5% is more consistent

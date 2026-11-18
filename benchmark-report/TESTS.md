@@ -191,7 +191,13 @@ The fragile parts, in order of fragility:
    (`logs/a7-endpoint-negotiation.log`, re-run 2026-11-18, four client offers across two regions plus
    a ten-repeat tally) and re-runnable in one command with `scripts/endpoint-probe.sh`. But
    server-side group preferences move with fleet rollouts: re-run the probe immediately before
-   publishing rather than citing the capture.
+   publishing rather than citing the capture. With A7 captured, one `[SOLID, RECALLED]` claim tag is
+   left in all of `FINDINGS.md`: Article 4's trap 4, short-warmup variance on a busy laptop, which
+   has no test doc behind it. Part A is clear: A1's enumeration was re-derived from the branch
+   diffs, A2's aarch64 half was recovered into `jmh/gate/`, A3/A4/A5/A6 were already verified in
+   their own test docs while `FINDINGS.md` went on carrying their old tags, and the musl mechanism
+   was read back against upstream musl at `64f05291ff99`. That reading corrected one claim -- see
+   [A2](tests/A2-tcnative-2081-alpine-both-arches.md)'s caveats.
 3. **thor itself.** Everything here is one machine, reachable over a VPN that dropped mid-session at
    least once. Kernel version (6.8.0-57-generic throughout; the host has since moved to 7.0.14),
    core count (4 physical, 8 logical) and SMT topology
