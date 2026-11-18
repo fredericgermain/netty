@@ -129,8 +129,15 @@ decimals.
 
 ## The same group is what AWS actually negotiates today
 
-**[SOLID, RECALLED]** `s3.eu-west-1.amazonaws.com` negotiates TLSv1.3 / TLS_AES_128_GCM_SHA256 /
-**X25519MLKEM768** / rsa_pss_rsae_sha256.
+**[SOLID]** `s3.eu-west-1.amazonaws.com` and `s3.us-east-1.amazonaws.com` both negotiate TLSv1.3 with
+**X25519MLKEM768**, under four different client offers, 10/10 on a repeat run
+(`logs/a7-endpoint-negotiation.log`, re-captured 2026-11-18). Withhold the hybrid from the offer and
+they fall back cleanly to X25519 or P-256. The signature algorithm is rsa_pss_rsae_sha256 throughout.
+
+The ciphersuite is **not** a property of the endpoint: the same server IP returns
+`TLS_AES_128_GCM_SHA256` on one connection and `TLS_CHACHA20_POLY1305_SHA256` on the next. An earlier
+version of this finding quoted the suite alongside the group as though both were stable. The group is
+the finding.
 
 This is the detail that makes the finding matter rather than being a curiosity. It is not a lab
 default nobody meets. A current, mainstream cloud endpoint is doing post-quantum hybrid key exchange

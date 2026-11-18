@@ -29,7 +29,7 @@ Confidence tags are the same as in `FINDINGS.md`:
 | A4 | libc effect by tcnative flavour | Is the musl handshake penalty a property of musl or of one flavour? | SOLID | [A4](tests/A4-libc-effect-by-tcnative-flavour.md) |
 | A5 | Key exchange group sweep | Is BoringSSL's default TLS 1.3 group the post-quantum hybrid, and what does it cost? | SOLID | [A5](tests/A5-key-exchange-group-sweep.md) |
 | A6 | TLS 1.2 vs TLS 1.3, group controlled | How much of the TLS 1.3 gap is the protocol and how much is the group? | SOLID | [A6](tests/A6-tls12-vs-tls13-group-controlled.md) |
-| A7 | What a real cloud endpoint negotiates | Is the post-quantum hybrid something a mainstream endpoint actually selects today? | SOLID, RECALLED | [A7](tests/A7-cloud-endpoint-negotiation.md) |
+| A7 | What a real cloud endpoint negotiates | Is the post-quantum hybrid something a mainstream endpoint actually selects today? | SOLID; re-captured 2026-11-18 | [A7](tests/A7-cloud-endpoint-negotiation.md) |
 | A8 | Negative controls | Would anything catch a cell reporting the wrong library's number, or a number at all? | SOLID | [A8](tests/A8-negative-controls.md) |
 | A9 | Never executed | What in Part A was built but never measured? | UNCERTAIN | [A9](tests/A9-never-executed.md) |
 | A10 | Patched tcnative clears the matrix | Does boringssl-static built from patched 2.0.82-SNAPSHOT run on both Alpine images? | SOLID | [A10](tests/A10-patched-tcnative-matrix-gate.md) |
@@ -187,17 +187,16 @@ The fragile parts, in order of fragility:
    problem as the worst gap. The scripts survived; the output did not. Every profiling result in Part
    D -- D6, D12, D13 -- rests on collapsed stack files that exist only on thor, and D15, which carries
    a large share of the argument, rests on a single unrecorded run pair.
-2. **[A7](tests/A7-cloud-endpoint-negotiation.md).** One undated probe, no transcript, and it is
-   exactly the kind of fact that changes. Re-run and capture it before publishing.
-3. **The one remaining `[SOLID, RECALLED]` tag**: A7. A1 is no longer among them: its four-bug
-   enumeration was re-derived from the branch diffs on 2026-11-18, with pre- and post-fix line
-   references, and A1 is now `[SOLID]`. A2 left the list on 2026-11-14 when its aarch64 half was
-   recovered into `jmh/gate/`.
-4. **thor itself.** Everything here is one machine, reachable over a VPN that dropped mid-session at
+2. **[A7](tests/A7-cloud-endpoint-negotiation.md) is a fact with a shelf life.** It is captured now
+   (`logs/a7-endpoint-negotiation.log`, re-run 2026-11-18, four client offers across two regions plus
+   a ten-repeat tally) and re-runnable in one command with `scripts/endpoint-probe.sh`. But
+   server-side group preferences move with fleet rollouts: re-run the probe immediately before
+   publishing rather than citing the capture.
+3. **thor itself.** Everything here is one machine, reachable over a VPN that dropped mid-session at
    least once. Kernel version (6.8.0-57-generic throughout; the host has since moved to 7.0.14),
    core count (4 physical, 8 logical) and SMT topology
    are all load-bearing for the io_uring results, and the SMT topology has already produced one
    documented methodology error.
-5. **The snapshot coordinates.** `netty-tcnative` 2.0.82.Final-SNAPSHOT and netty 4.2.18-SNAPSHOT can
+4. **The snapshot coordinates.** `netty-tcnative` 2.0.82.Final-SNAPSHOT and netty 4.2.18-SNAPSHOT can
    both change under the same coordinate. Every Part A number and every Part D number is against a
    snapshot.
