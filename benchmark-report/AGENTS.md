@@ -19,6 +19,7 @@ netty material. Read `FINDINGS.md` for conclusions, `TESTS.md` for the evidence 
 | `scripts/usb-build.sh` | writes the replication USB key | destructive; needs `--yes` and a removable device |
 | `scripts/usb-setup.sh` | brings a booted live session up, wi-fi first | once per boot |
 | `scripts/endpoint-probe.sh` | what a real TLS endpoint negotiates, offer by offer, with a repeat tally | re-run before publishing any A7 figure; the answer moves with fleet rollouts |
+| `scripts/group-identity.sh` | reads `SSL_get_negotiated_group` off a netty/BoringSSL server under four client offers | to check what a provider actually selects, rather than inferring it from a score |
 | `c-control/IMAGE-PROVENANCE.md` | what is inside `iouring-control:latest`, the C client cell C runs | before trusting or rebuilding cell C |
 | `jmh/`, `logs/`, `c-control/`, `quic/`, `tests/` | raw output and per-area harnesses | |
 

@@ -1,0 +1,17 @@
+date       2026-11-18T21:40:18+00:00
+client     OpenSSL 3.5.5 27 Jan 2026 (Library: OpenSSL 3.5.5 27 Jan 2026)
+image      eclipse-temurin:21-jdk
+jar        /home/fred/workspaces/fred/netty-alpine/netty/loadtest/target/loadtest.jar
+netty      4.2.18.Final-SNAPSHOT
+
+=== server built with no group option: BoringSSL's own preference decides
+offer                          version  ciphersuite                  group
+<client default>               TLSv1.3  TLS_AES_256_GCM_SHA384       X25519MLKEM768
+X25519MLKEM768:X25519:P-256    TLSv1.3  TLS_AES_256_GCM_SHA384       X25519MLKEM768
+X25519:P-256                   TLSv1.3  TLS_AES_256_GCM_SHA384       X25519
+P-256                          TLSv1.3  TLS_AES_256_GCM_SHA384       prime256v1
+
+=== control: server pinned to X25519, client still offers the hybrid first
+X25519MLKEM768:X25519:P-256    TLSv1.3  TLS_AES_256_GCM_SHA384       X25519
+
+IDENTITY_DONE

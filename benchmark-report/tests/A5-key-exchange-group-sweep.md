@@ -47,15 +47,36 @@ The provider default and the explicit post-quantum hybrid are the same number to
 their combined error, which is how you know the default *is* the hybrid. Pinning classical X25519
 instead is about 25% cheaper; P-256 is cheaper still.
 
-Does **not** establish that the default is X25519MLKEM768 by *identity*. It establishes that the
-default costs what X25519MLKEM768 costs. A packet capture or an `SSL_get_negotiated_group()` call
-would settle it directly and neither was done. The inference is strong but it is an inference.
+**Identity settled, 2026-11-18.** This section used to say the sweep establishes only that the
+default *costs what X25519MLKEM768 costs*, and that "a packet capture or an
+`SSL_get_negotiated_group()` call would settle it directly and neither was done". That call has now
+been made. `scripts/group-identity.sh` points `openssl s_client -brief`, which reports
+`SSL_get_negotiated_group`, at a netty server running this branch's tcnative/BoringSSL with no group
+configured (`logs/a5-group-identity.log`):
+
+| client offer | negotiated group |
+|---|---|
+| client default (hybrid first, then x25519, P-256, x448, P-384, P-521, ffdhe2048, ffdhe3072) | **X25519MLKEM768** |
+| `X25519MLKEM768:X25519:P-256` | **X25519MLKEM768** |
+| `X25519:P-256` | X25519 |
+| `P-256` | prime256v1 |
+
+So BoringSSL takes the hybrid by identity, not merely at the hybrid's price, and takes it while two
+classical groups it could have preferred are on offer. The control rules out reading the client's
+preference by mistake: with the server pinned to `-Dnetty.loadtest.tls.groups=X25519` and the client
+still offering the hybrid first, the negotiated group is X25519.
+
+This is a server-side selection against an OpenSSL 3.5.5 client, where the sweep had BoringSSL on
+both sides. What selects is the server, so the preference being read is the same one; a BoringSSL
+*client*'s offer order was not measured.
 
 Does **not** say anything about handshake *security*, only cost, and nothing about the bandwidth cost
 of the larger key share -- only CPU time per handshake.
 
 ## Raw data
 
+- `benchmark-report/logs/a5-group-identity.log` -- the `SSL_get_negotiated_group` probe and its
+  control, 2026-11-18, via `benchmark-report/scripts/group-identity.sh`
 - `benchmark-report/logs/groups.log` -- the full sweep, both sections
 - `benchmark-report/logs/jar-groups.log` -- the jar build, `BUILD SUCCESS`, finished
   2026-08-25T12:42:46Z

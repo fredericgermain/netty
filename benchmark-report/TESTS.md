@@ -27,7 +27,7 @@ Confidence tags are the same as in `FINDINGS.md`:
 | A2 | tcnative 2.0.81 on Alpine, both arches | Does released boringssl-static load on musl, and does the failure differ by architecture? | SOLID; aarch64 log recovered 2026-11-14 | [A2](tests/A2-tcnative-2081-alpine-both-arches.md) |
 | A3 | openssl-dynamic as an Alpine workaround | Does the other flavour of the same released tcnative load where boringssl-static does not? | SOLID | [A3](tests/A3-openssl-dynamic-alpine-workaround.md) |
 | A4 | libc effect by tcnative flavour | Is the musl handshake penalty a property of musl or of one flavour? | SOLID | [A4](tests/A4-libc-effect-by-tcnative-flavour.md) |
-| A5 | Key exchange group sweep | Is BoringSSL's default TLS 1.3 group the post-quantum hybrid, and what does it cost? | SOLID | [A5](tests/A5-key-exchange-group-sweep.md) |
+| A5 | Key exchange group sweep | Is BoringSSL's default TLS 1.3 group the post-quantum hybrid, and what does it cost? | SOLID; identity settled 2026-11-18 | [A5](tests/A5-key-exchange-group-sweep.md) |
 | A6 | TLS 1.2 vs TLS 1.3, group controlled | How much of the TLS 1.3 gap is the protocol and how much is the group? | SOLID | [A6](tests/A6-tls12-vs-tls13-group-controlled.md) |
 | A7 | What a real cloud endpoint negotiates | Is the post-quantum hybrid something a mainstream endpoint actually selects today? | SOLID; re-captured 2026-11-18 | [A7](tests/A7-cloud-endpoint-negotiation.md) |
 | A8 | Negative controls | Would anything catch a cell reporting the wrong library's number, or a number at all? | SOLID | [A8](tests/A8-negative-controls.md) |

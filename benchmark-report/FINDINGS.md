@@ -120,7 +120,10 @@ and has nothing to do with Alpine or io_uring.
 | P-256 | 1000.8 +/- 9.0 |
 
 The default and the explicit post-quantum hybrid are the same number, which is how you know the
-default *is* the hybrid. Pinning classical X25519 instead is about 25% cheaper.
+default *is* the hybrid -- and `SSL_get_negotiated_group` now says so directly: a netty server on
+this branch's tcnative/BoringSSL, with no group configured, negotiates X25519MLKEM768 even when the
+client also offers X25519 and P-256 (`logs/a5-group-identity.log`). Pinning classical X25519 instead
+is about 25% cheaper.
 
 **Unit resolved: `us/op`, microseconds per handshake, lower is better.** The raw JMH records were
 recovered from the test host and are now committed under `benchmark-report/jmh/`, so these figures
