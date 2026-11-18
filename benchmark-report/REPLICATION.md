@@ -142,7 +142,26 @@ Record the outcome per cell before looking at the next cell, so the criterion ca
 ## The key
 
 Built by `scripts/usb-build.sh`, which writes a stock Ubuntu live ISO to the device and adds a
-persistent `BENCHDATA` partition beside it. Nothing is remastered: a rebuilt squashfs is a second
+persistent `BENCHDATA` partition beside it.
+
+The image is **`ubuntu-26.04.1-desktop-amd64.iso`**, 6,482,409,472 bytes, sha256
+`601e30fbf5d97759367c632e2c33630665039b7e2158fd068403da3ccf1bda1f`, checked against
+`releases.ubuntu.com/resolute/SHA256SUMS` on 2026-11-17. Verify any replacement copy the same way
+before writing it: a truncated ISO costs a boot cycle on the other machine to discover.
+
+What has to fit beside it, measured rather than estimated:
+
+| on `BENCHDATA` | size |
+|---|---|
+| `eclipse-temurin:21-jdk` | 729 MB |
+| `eclipse-temurin:21-jdk-alpine` | 554 MB |
+| `iouring-control:latest` (cell C's client) | 1.29 GB |
+| `loadtest.jar` | 22 MB |
+| docker graph, once the tars are loaded | roughly the same again |
+
+So about 2.6 GB of image tars, and the graph they unpack into. A 16 GB key clears the script's 8 GB
+check with around 9.5 GB for the partition and works; **32 GB is the comfortable size** once the
+graph and several rounds of results are on it. Nothing is remastered: a rebuilt squashfs is a second
 thing that can silently differ between two boots, and the whole value of one key on two machines is
 that the image is byte-identical. Everything variable lives on `BENCHDATA`, where it can be
 inspected.
