@@ -835,13 +835,20 @@ this, and measure with an alternative allocator preloaded before concluding anyt
 Every one of these was hit for real in this work. That is the thesis: the failure mode of
 benchmarking is not a crash, it is a number that looks fine.
 
-1. **[SOLID, RECALLED] JMH exits 0 with an empty result array** when every benchmark fails to
-   initialise. A green run with no results looks like a pass to any CI script.
-2. **[SOLID, RECALLED] Netty's own shaded benchmark jar could not run a single SSL benchmark**,
-   because the key material was resolved with `getResource().getFile()`, which does not work inside a
-   jar. Nobody had noticed because nothing in netty's CI runs `microbench`.
-3. **[SOLID, RECALLED] SSL contexts were built eagerly for every provider**, so the JDK-provider rows
-   could not run at all on an image where tcnative was absent. The control was silently unavailable.
+1. **[SOLID] JMH exits 0 with an empty result array** when every benchmark fails to initialise. A
+   green run with no results looks like a pass to any CI script. Recorded contemporaneously in
+   `a73e536c05`'s commit message; no empty-array JSON was archived, so the behaviour is cited from
+   that record rather than from captured output.
+2. **[SOLID] Netty's own shaded benchmark jar could not run a single SSL benchmark**, because the key
+   material was resolved with `new File(getClass().getResource(...).getFile())`, which inside a jar
+   yields `file:/....jar!/io/netty/...` -- not a filesystem path. Readable pre-fix at
+   `AbstractSslEngineBenchmark.java:75-76` and `AbstractSslHandlerBenchmark.java:76-77` in
+   `a73e536c05^`. Nobody had noticed because nothing in netty's CI runs `microbench`.
+3. **[SOLID] SSL contexts were built eagerly for every provider** -- held in enum field initialisers,
+   so `<clinit>` built all three and `OpenSsl.ensureAvailability()` ran even for a JDK-provider row.
+   The JDK rows could not run at all on an image where tcnative was absent: the control was silently
+   unavailable. Pre-fix at `AbstractSslEngineBenchmark.java:59-60` in `eccd312033^`; see
+   [A1](tests/A1-microbench-jar-on-alpine.md) for all four defects and their fixes.
 4. **[SOLID, RECALLED] Short-warmup numbers varied up to 10x run-to-run on a busy laptop** while being
    stable to +/-2% on an idle host.
 5. **[SOLID] Netty's transports fall back to NIO** when a native transport is unavailable. For a

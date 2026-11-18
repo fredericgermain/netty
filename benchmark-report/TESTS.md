@@ -23,7 +23,7 @@ Confidence tags are the same as in `FINDINGS.md`:
 
 | id | title | question | confidence | file |
 |---|---|---|---|---|
-| A1 | Microbench jar on Alpine | Does netty's shaded microbench jar run the SSL benchmarks at all? | SOLID, RECALLED | [A1](tests/A1-microbench-jar-on-alpine.md) |
+| A1 | Microbench jar on Alpine | Does netty's shaded microbench jar run the SSL benchmarks at all? | SOLID | [A1](tests/A1-microbench-jar-on-alpine.md) |
 | A2 | tcnative 2.0.81 on Alpine, both arches | Does released boringssl-static load on musl, and does the failure differ by architecture? | SOLID; aarch64 log recovered 2026-11-14 | [A2](tests/A2-tcnative-2081-alpine-both-arches.md) |
 | A3 | openssl-dynamic as an Alpine workaround | Does the other flavour of the same released tcnative load where boringssl-static does not? | SOLID | [A3](tests/A3-openssl-dynamic-alpine-workaround.md) |
 | A4 | libc effect by tcnative flavour | Is the musl handshake penalty a property of musl or of one flavour? | SOLID | [A4](tests/A4-libc-effect-by-tcnative-flavour.md) |
@@ -189,9 +189,10 @@ The fragile parts, in order of fragility:
    a large share of the argument, rests on a single unrecorded run pair.
 2. **[A7](tests/A7-cloud-endpoint-negotiation.md).** One undated probe, no transcript, and it is
    exactly the kind of fact that changes. Re-run and capture it before publishing.
-3. **The remaining `[SOLID, RECALLED]` tags**: A1 and A7. A1's four-bug enumeration is worth
-   recovering and is cheap. A2 is no longer among them: its aarch64 half was recovered on 2026-11-14
-   and is in `jmh/gate/`.
+3. **The one remaining `[SOLID, RECALLED]` tag**: A7. A1 is no longer among them: its four-bug
+   enumeration was re-derived from the branch diffs on 2026-11-18, with pre- and post-fix line
+   references, and A1 is now `[SOLID]`. A2 left the list on 2026-11-14 when its aarch64 half was
+   recovered into `jmh/gate/`.
 4. **thor itself.** Everything here is one machine, reachable over a VPN that dropped mid-session at
    least once. Kernel version (6.8.0-57-generic throughout; the host has since moved to 7.0.14),
    core count (4 physical, 8 logical) and SMT topology
