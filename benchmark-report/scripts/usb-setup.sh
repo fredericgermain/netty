@@ -11,7 +11,12 @@
 # Idempotent: safe to re-run after a failed step.
 
 set -u
-DATA="${DATA:-/mnt/benchdata}"
+# Self-locating: this script lives at <data>/scripts/usb-setup.sh, so the data partition is its own
+# grandparent directory. It used to hard-code /mnt/benchdata, which meant the operator had to mount
+# the partition at exactly that path -- three commands typed at a bare tty on the machine under
+# test. Now any mount point works, and `go` at the partition root makes it one line.
+SELF_DATA=$(cd "$(dirname "$0")/.." 2>/dev/null && pwd)
+DATA="${DATA:-${SELF_DATA:-/mnt/benchdata}}"
 WIFI_CONF="${WIFI_CONF:-$DATA/wifi.conf}"
 step() { printf '\n\033[1m== %s\033[0m\n' "$1"; }
 ok()   { printf '  \033[32mOK\033[0m   %s\n' "$1"; }

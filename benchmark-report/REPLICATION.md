@@ -219,7 +219,16 @@ against comparing across a settings change nobody remembers making. thor's basel
 | **netboot / PXE** | Ruled out. The 9380 has no Ethernet port and PXE cannot join a WPA2 network, so it needs a USB-C dongle and a netboot server. It also defeats the premise: an image fetched at boot is not a frozen environment, and pinning it to make it one is this key with extra steps. |
 | **Alpine from RAM** | Ruled out 2026-11-16 on the grounds that `apk add libsmbios` installs the shared library and **no binaries**, so `smbios-thermal-ctl` does not exist there. That reasoning is now obsolete -- see below, the thermal mode is set through sysfs and needs no package -- but the conclusion stands on the other grounds: the wi-fi path, `linux-firmware` for `ath10k`, and NetworkManager. Alpine stays where it belongs, inside the container images. |
 
-In the session: `sudo /mnt/benchdata/scripts/usb-setup.sh`. It does Wi-Fi first, on purpose --
+In the session, one line:
+
+```
+sudo mount LABEL=BENCHDATA /mnt && sudo /mnt/go
+```
+
+`go` runs `usb-setup.sh` and then the readiness gate, and prints what is still missing. It is one
+line because the alternative was three commands typed at a bare tty on the machine under test, with
+no desktop and no shell history; `usb-setup.sh` is self-locating, so the mount point is not fixed
+and `/mnt` is used only because it exists everywhere. `usb-setup.sh` does Wi-Fi first, on purpose --
 package installation, result shipping and reaching the machine at all depend on it, and a session
 that quietly has no network wastes the boot.
 

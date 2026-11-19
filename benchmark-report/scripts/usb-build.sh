@@ -124,6 +124,9 @@ done
 mkdir -p "$MNT/quic"
 cp "$REPO/benchmark-report/quic/"*.sh "$MNT/quic/"
 cp "$REPO/benchmark-report/REPLICATION.md" "$MNT/"
+# The launcher goes at the partition root, not in scripts/, because its whole purpose is to be
+# short to type at a tty: `sudo /mnt/go`.
+install -m 755 "$REPO/benchmark-report/scripts/go" "$MNT/go"
 chmod +x "$MNT"/scripts/*.sh
 
 echo "== wi-fi config"
@@ -229,9 +232,11 @@ cat <<EOF
    desktop session on the machine under test is resident memory, background services and wakeups
    on cores that are fully committed, and it does nothing for a benchmark.
 
-   Then, in the live session:
-     sudo mkdir -p /mnt/benchdata && sudo mount LABEL=BENCHDATA /mnt/benchdata
-     sudo /mnt/benchdata/scripts/usb-setup.sh
+   Then, in the live session, one line:
+
+       sudo mount LABEL=BENCHDATA /mnt && sudo /mnt/go
+
+   go runs the bring-up and then the readiness gate, and tells you what is left.
 
    Test the whole path on the 9380 first. It establishes nothing about the transports but it is
    where the key's own problems will surface, and the clock cap for that machine has to be derived

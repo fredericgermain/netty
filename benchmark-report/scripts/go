@@ -1,0 +1,44 @@
+#!/bin/bash
+# The whole live-session bring-up, in one word.
+#
+#   sudo mount LABEL=BENCHDATA /mnt && sudo /mnt/go
+#
+# This exists because the documented alternative was three commands typed at a bare tty, on a
+# laptop, with no desktop and no shell history -- `mkdir -p /mnt/benchdata`, a `mount` naming that
+# exact path, then the script by its full path. usb-setup.sh is self-locating now, so the mount
+# point does not matter and this launcher needs no arguments.
+#
+# Everything after the mount is here, in order, and it stops at the first thing that fails: there is
+# no point calibrating a machine whose wi-fi never came up.
+set -u
+HERE=$(cd "$(dirname "$0")" && pwd)
+[ "$(id -u)" = 0 ] || { echo "run with sudo: sudo $0" >&2; exit 1; }
+
+echo "== bring-up from $HERE"
+"$HERE/scripts/usb-setup.sh" || { echo; echo "usb-setup.sh failed. Fix it before measuring."; exit 1; }
+
+echo
+echo "== readiness gate"
+"$HERE/scripts/bench-usb.sh" check
+gate=$?
+
+cat <<EOF
+
+== next
+   RESULTS_DIR=$HERE/results JAR=$HERE/loadtest.jar
+EOF
+if [ "$gate" != 0 ]; then
+  cat <<EOF
+   The gate is not green. On a machine whose clock cap has never been measured that is expected and
+   correct -- bench-usb.sh refuses to borrow another machine's figure. Derive it with the rig repo's
+   sweeps/coresweep3.sh, add it to the table in scripts/bench-usb.sh, then re-run:
+
+       sudo $HERE/go
+EOF
+else
+  cat <<EOF
+   Gate is green. Anchors before any cell:
+
+       $HERE/scripts/calibrate.sh \$(hostname)
+EOF
+fi

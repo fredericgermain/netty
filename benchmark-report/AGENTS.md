@@ -18,6 +18,7 @@ netty material. Read `FINDINGS.md` for conclusions, `TESTS.md` for the evidence 
 | `scripts/bench-usb.sh` | readiness gate for a live session, per-machine clock caps | `check` before measuring, on any host |
 | `scripts/hwinfo.sh` | the parts and the BIOS state a run was taken on, with a `BIOSHASH` and a one-line `HWSUM` label | once per machine before any cell; carried over from the 9380 standby kit |
 | `scripts/usb-build.sh` | writes the replication USB key | destructive; needs `--yes` and a removable device |
+| `scripts/go` | the whole live-session bring-up in one word: `sudo mount LABEL=BENCHDATA /mnt && sudo /mnt/go` | every boot; it lands at the key's root, not in `scripts/` |
 | `scripts/usb-setup.sh` | brings a booted live session up, wi-fi first | once per boot |
 | `scripts/endpoint-probe.sh` | what a real TLS endpoint negotiates, offer by offer, with a repeat tally | re-run before publishing any A7 figure; the answer moves with fleet rollouts |
 | `scripts/group-identity.sh` | reads `SSL_get_negotiated_group` off a netty/BoringSSL server under four client offers | to check what a provider actually selects, rather than inferring it from a score |
