@@ -12,10 +12,11 @@ netty material. Read `FINDINGS.md` for conclusions, `TESTS.md` for the evidence 
 | `ENVIRONMENT.md` | how to run a benchmark that is not corrupted | before designing a run |
 | `TESTS.md` | one row per test, pointing at `tests/` and the raw data | to find what backs a claim |
 | `REPLICATION.md` | the two-machine protocol and its pass/fail criteria | before any run on the second machine |
-| `quic/lib.sh` | the shared harness: port scan, quiet gates, container lifecycle, per-cell frequency, throttle and wi-fi deltas | sourced by every sweep; extend here rather than reimplementing |
+| `quic/lib.sh` | the shared harness: port scan, quiet gates, container lifecycle, per-cell frequency, throttle, wi-fi and usb-write deltas | sourced by every sweep; extend here rather than reimplementing |
 | `scripts/topology.sh` | derives cpusets from `thread_siblings_list` | never hardcode a cpuset; source this |
 | `scripts/calibrate.sh` | the fixed compute and network anchors | before and after every machine's set |
 | `scripts/bench-usb.sh` | readiness gate for a live session, per-machine clock caps | `check` before measuring, on any host |
+| `scripts/hwinfo.sh` | the parts and the BIOS state a run was taken on, with a `BIOSHASH` and a one-line `HWSUM` label | once per machine before any cell; carried over from the 9380 standby kit |
 | `scripts/usb-build.sh` | writes the replication USB key | destructive; needs `--yes` and a removable device |
 | `scripts/usb-setup.sh` | brings a booted live session up, wi-fi first | once per boot |
 | `scripts/endpoint-probe.sh` | what a real TLS endpoint negotiates, offer by offer, with a repeat tally | re-run before publishing any A7 figure; the answer moves with fleet rollouts |
@@ -34,8 +35,10 @@ Host characterisation (fan curves, core sweeps, `bench-tuning.sh`) lives outside
   every cell asserts what it claims to measure and fails loudly instead.
 - **Interleave at least five rounds** and report the spread. If a range overlaps the cell it is
   compared against, the result is "not established", not "a small effect".
-- **A foreign container, a nonzero throttle delta, or an outlying `wifiDelta` disqualifies a cell.**
-  Contention has been observed to invert a transport ordering, not merely add noise.
+- **A foreign container, a nonzero throttle delta, or an outlying `wifiDelta` or `usbDelta`
+  disqualifies a cell.** Contention has been observed to invert a transport ordering, not merely
+  add noise. On the replication key docker's graph is on flash, so `usbDelta` is the same argument
+  applied to the key: measure it per cell rather than assume the stick is out of the way.
 - **Archive raw output, not summaries.** Every `[SOLID, RECALLED]` tag exists because a number
   reached a document without its raw record.
 - The sweeps run workloads in **containers**; the host libc is not the measurement's libc.

@@ -173,6 +173,43 @@ resident memory, background services and periodic wakeups on the cores under tes
 is doing anything for a benchmark. `BENCHDATA` is then the only thing that persists, which is
 deliberate: it holds the raw output, the docker graph and the jar.
 
+### How to boot it without breaking the machine
+
+Carried over from the 9380 standby test kit, whose `README.txt` is emphatic about this and which has
+already booted this exact 9380. None of it is optional on a machine that dual-boots Windows:
+
+- **Use the one-time boot menu: tap F12 at the Dell logo and pick the USB key.** Do **not** change
+  the permanent boot order.
+- **Leave Secure Boot ON.** The key is a stock, signed Ubuntu image written with `dd`, and
+  `usb-build.sh` only appends a GPT partition -- shim and grub are untouched, so it boots with
+  Secure Boot enabled. Turning Secure Boot off, or reordering boot devices, is what can trigger a
+  **BitLocker recovery prompt on the next Windows boot**, and on a corporate machine you may not
+  hold that key.
+- If F12 is password protected or external boot is blocked, **stop**. That is a policy control, not
+  an obstacle to work around.
+- At the Ubuntu menu choose **"Try Ubuntu", not "Install Ubuntu"**, then press `e` on the entry to
+  append the kernel arguments above.
+- **The internal disk is never mounted, never written, never touched.** Booted to
+  `multi-user.target` nothing auto-mounts it, and every path this protocol writes to is either RAM
+  or `BENCHDATA`. Check once per machine with `findmnt | grep nvme` returning nothing.
+
+### The two machines are not memory-equivalent
+
+Recorded by `scripts/hwinfo.sh`, which runs before any cell and writes to `results/`:
+
+| | memory | configured |
+|---|---|---|
+| thor, XPS 15 9500 | 2 x 32 GB Micron `16ATF4G64HZ-3G2F1`, **rank 2** | 3200 MT/s part running at **2933** |
+| 9380 | 16 GB | to be recorded on its first boot |
+
+64 GB against 16 GB, and the rank and configured speed are not yet known for the 9380. This does
+**not** invalidate the comparison -- the anchor cells are CPU- and syscall-bound, not
+capacity-bound -- but it does mean "only the hardware differs" has to be read as "the hardware
+differs in known, recorded ways". The `HWSUM` and `BIOSHASH` lines in each machine's `hwinfo` record
+are what make that checkable: `BIOSHASH` changes if any BIOS setting differs, which is the guard
+against comparing across a settings change nobody remembers making. thor's baseline is committed at
+`hwinfo/thor-xps15-9500.txt` (BIOS 1.40.0, `BIOSHASH 8519d4cb42aa`, 111 settings).
+
 ### Why the desktop image rather than something smaller
 
 | option | verdict |

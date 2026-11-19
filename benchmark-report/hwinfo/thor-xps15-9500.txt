@@ -1,0 +1,162 @@
+memory DIMM A: Micron (802C00000000) part 16ATF4G64HZ-3G2F1 serial 363CAC26 32768 MB rank 2 3200 MT/s (configured 2933)
+memory DIMM B: Micron (802C00000000) part 16ATF4G64HZ-3G2F1 serial 363CAB04 32768 MB rank 2 3200 MT/s (configured 2933)
+drive nvme0n1: SanDisk Extreme Pro 1TB fw 101200RL serial 20501J801436 931 GiB removable=0
+drive nvme1n1: SSDPEMKF512G8 NVMe INTEL 512GB fw 7004 serial BTHP01760QQB512C 476 GiB removable=0
+drive sda: STORAGE DEVICE fw 0009 serial  29 GiB removable=1
+pci 00:00.0 8086:9b64 skl_uncore D0
+pci 00:02.0 8086:9bc4 i915 D3hot
+pci 00:04.0 8086:1903 proc_thermal D0
+pci 00:08.0 8086:1911  D0
+pci 00:12.0 8086:06f9 intel_pch_thermal D0
+pci 00:13.0 8086:06fc intel_ish_ipc D0
+pci 00:14.0 8086:06ed xhci_hcd D0
+pci 00:14.2 8086:06ef  D0
+pci 00:14.3 8086:06f0 iwlwifi D0
+pci 00:15.0 8086:06e8 intel-lpss D3hot
+pci 00:15.1 8086:06e9 intel-lpss D3hot
+pci 00:16.0 8086:06e0 mei_me D0
+pci 00:1b.0 8086:06c0 pcieport D0
+pci 00:1c.0 8086:06b8 pcieport D0
+pci 00:1c.6 8086:06be pcieport D0
+pci 00:1d.0 8086:06b0 pcieport D0
+pci 00:1e.0 8086:06a8 intel-lpss D3hot
+pci 00:1f.0 8086:068e  D0
+pci 00:1f.3 8086:06c8 snd_hda_intel D3hot
+pci 00:1f.4 8086:06a3 i801_smbus D0
+pci 00:1f.5 8086:06a4 intel-spi D0
+pci 01:00.0 8086:f1a6 nvme D0
+pci 02:00.0 8086:15ea pcieport D0
+pci 03:00.0 8086:15ea pcieport D3hot
+pci 03:01.0 8086:15ea pcieport D3hot
+pci 03:02.0 8086:15ea pcieport D0
+pci 03:04.0 8086:15ea pcieport D3hot
+pci 04:00.0 8086:15eb thunderbolt D3hot
+pci 38:00.0 8086:15ec xhci_hcd D0
+pci 6c:00.0 10ec:5260 rtsx_pci D0
+pci 6d:00.0 15b7:5002 nvme D0
+usb 1-10 27c6:533c FingerPrint
+usb 1-11 0c45:6d14 Integrated_Webcam_HD
+usb 1-14 8087:0026 
+usb 1-4 1f75:0918 STORAGE_DEVICE
+usb 1-5 0424:2807 USB2807_Hub
+usb 1-5.5 0bda:4014 USB_Audio
+usb 4-2 0424:5807 USB5807_Hub
+usb 4-2.2 0bda:8153 USB_10/100/1000_LAN
+DEVICES wifi=yes bt=yes cardreader=yes fingerprint=yes camera=yes audio=yes thunderbolt=yes pci=31 usb=8
+biosattr Absolute=Disabled
+biosattr AdminSetupLockout=Disabled
+biosattr AdvBatteryChargeCfg=Disabled
+biosattr AdvancedMode=Enabled
+biosattr AllowBiosDowngrade=Enabled
+biosattr AmtCap=RestrictMebxAccess
+biosattr Asset=
+biosattr AutoOSRecoveryThreshold=2
+biosattr AutoOn=Disabled
+biosattr AutoOnFri=Disabled
+biosattr AutoOnHr=0
+biosattr AutoOnMn=0
+biosattr AutoOnMon=Disabled
+biosattr AutoOnSat=Disabled
+biosattr AutoOnSun=Disabled
+biosattr AutoOnThur=Disabled
+biosattr AutoOnTue=Disabled
+biosattr AutoOnWed=Disabled
+biosattr BIOSConnect=Enabled
+biosattr BiosLogClear=Keep
+biosattr BiosRcvrFrmHdd=Enabled
+biosattr BlockSleep=Disabled
+biosattr BluetoothDevice=Enabled
+biosattr CStatesCtrl=Enabled
+biosattr Camera=Enabled
+biosattr CapsuleFirmwareUpdate=Enabled
+biosattr CpuCore=CoresAll
+biosattr CustomChargeStart=50
+biosattr CustomChargeStop=90
+biosattr DellCoreService=Disabled
+biosattr DockWarningsEnMsg=Enabled
+biosattr EmbSataRaid=Ahci
+biosattr ExtPostTime=0s
+biosattr FOTA=Enabled
+biosattr Fastboot=Thorough
+biosattr FingerprintReader=Enabled
+biosattr FnLock=Enabled
+biosattr FnLockMode=EnableSecondary
+biosattr ForceLpmAspmOff=Disabled
+biosattr FullScreenLogo=Disabled
+biosattr IntegratedAudio=Enabled
+biosattr InternalSpeaker=Enabled
+biosattr KbdBacklightTimeoutAc=10s
+biosattr KbdBacklightTimeoutBatt=10s
+biosattr KeyboardIllumination=Disabled
+biosattr LidSwitch=Enabled
+biosattr LogicProc=Enabled
+biosattr M2PcieSsd0=Enabled
+biosattr M2PcieSsd1=Enabled
+biosattr MacAddrPassThru=SystemUnique
+biosattr MasterPasswordLockout=Disabled
+biosattr Microphone=Enabled
+biosattr NumLock=Enabled
+biosattr OromKeyboardAccess=Enabled
+biosattr PasswordBypass=Disabled
+biosattr PasswordLock=Enabled
+biosattr PeakShiftBatteryThreshold=0
+biosattr PeakShiftCfg=Disabled
+biosattr PowerLogClear=Keep
+biosattr PowerOnLidOpen=Disabled
+biosattr PowerWarn=Enabled
+biosattr PrimaryBattChargeCfg=Custom
+biosattr PwdDigitRqd=Disabled
+biosattr PwdLowerCaseRqd=Disabled
+biosattr PwdMinLen=4
+biosattr PwdSpecialCharRqd=Disabled
+biosattr PwdUpperCaseRqd=Disabled
+biosattr RemoteWipeInternalDrives=Unarmed
+biosattr SHA256=Enabled
+biosattr Sata0=Enabled
+biosattr Sata1=Enabled
+biosattr SdCard=Enabled
+biosattr SdCardBoot=Disabled
+biosattr SdCardReadOnly=Disabled
+biosattr SecureBoot=Disabled
+biosattr SecureBootMode=DeployedMode
+biosattr SignOfLifeByDisplay=Enabled
+biosattr SignOfLifeByKbdBacklight=Enabled
+biosattr SmartErrors=Disabled
+biosattr SmmSecurityMitigation=Disabled
+biosattr SoftGuardEn=Disabled
+biosattr SpeedShift=Enabled
+biosattr Speedstep=Enabled
+biosattr StrongPassword=Disabled
+biosattr SupportAssistOSRecovery=Enabled
+biosattr SvcTag=J5KP353
+biosattr TelemetryAccessLvl=Full
+biosattr ThermalLogClear=Keep
+biosattr ThermalManagement=Optimized
+biosattr ThunderboltBoot=Disabled
+biosattr ThunderboltPorts=Enabled
+biosattr ThunderboltPreboot=Disabled
+biosattr ThunderboltSecLvl=UserAuth
+biosattr TpmActivation=Enabled
+biosattr TpmPpiClearOverride=Disabled
+biosattr TpmPpiDpo=Disabled
+biosattr TpmPpiPo=Disabled
+biosattr TpmSecurity=Enabled
+biosattr TurboMode=Enabled
+biosattr UefiBootPathSecurity=AlwaysExceptInternalHdd
+biosattr UefiNwStack=Enabled
+biosattr UsbEmu=Enabled
+biosattr UsbPortsExternal=Enabled
+biosattr Virtualization=Enabled
+biosattr VtForDirectIo=Enabled
+biosattr WakeOnAc=Disabled
+biosattr WakeOnDock=Disabled
+biosattr WakeOnLan=LanOnly
+biosattr WarningsAndErr=PromptWrnErr
+biosattr WirelessLan=Enabled
+biosattr WlanAutoSense=Disabled
+BIOSDEV BluetoothDevice=Enabled Camera=Enabled FingerprintReader=Enabled IntegratedAudio=Enabled InternalSpeaker=Enabled Microphone=Enabled SdCard=Enabled SdCardBoot=Disabled SdCardReadOnly=Disabled ThunderboltBoot=Disabled ThunderboltPorts=Enabled ThunderboltPreboot=Disabled ThunderboltSecLvl=UserAuth UsbEmu=Enabled UsbPortsExternal=Enabled WirelessLan=Enabled WlanAutoSense=Disabled 
+BIOSHASH 8519d4cb42aa (111 settings)
+bios: Dell Inc. XPS 15 9500 BIOS 1.40.0
+charger: ucsi-source-psy-USBC000:002 5 V 8330 mA max
+battery: Not charging 89% 12787000 uV
+HWSUM DIMMA=Micron:16ATF4G64HZ-3G2F1:32768MB:r2 DIMMB=Micron:16ATF4G64HZ-3G2F1:32768MB:r2 nvme0n1=SanDisk_Extreme_Pro_1TB:101200RL nvme1n1=SSDPEMKF512G8_NVMe_INTEL_512GB:7004

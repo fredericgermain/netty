@@ -20,6 +20,12 @@ set -u
 ISO="" ; DEV="" ; CONFIRM=0
 REPO=$(cd "$(dirname "$0")/../.." && pwd)
 WIFI_SRC="${WIFI_SRC:-}"
+# An ssh public key so the booted machine can be driven from the other one. Public key material, so
+# it is safe on removable media -- unlike wifi.conf, which is not. The default is this host's own
+# key, because the useful direction is thor -> the machine under test: a session driven from its own
+# keyboard puts a terminal and an input stack on the cores being measured. The 9380 standby kit
+# installed authorized_keys on every boot for exactly this reason.
+SSH_KEY="${SSH_KEY:-$HOME/.ssh/id_ed25519_fred_thor.pub}"
 
 # The images the cells need. Saved from this host rather than pulled on the target, so the two
 # machines run byte-identical images and neither depends on a registry mid-sweep.
@@ -35,6 +41,8 @@ while [ $# -gt 0 ]; do
     --iso) ISO=$2; shift 2 ;;
     --dev) DEV=$2; shift 2 ;;
     --wifi) WIFI_SRC=$2; shift 2 ;;
+    --ssh-key) SSH_KEY=$2; shift 2 ;;
+    --no-ssh-key) SSH_KEY=""; shift ;;
     --yes) CONFIRM=1; shift ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
@@ -54,7 +62,19 @@ mount | grep -q "^$DEV" && die "$DEV has mounted partitions; unmount them first"
 
 echo "== target"
 lsblk -o NAME,SIZE,MODEL,TRAN,RM,MOUNTPOINT "$DEV"
-size_gb=$(( $(blockdev --getsize64 "$DEV") / 1000000000 ))
+# sysfs first, blockdev second. `blockdev --getsize64` needs to open the device, so it needs root --
+# which would make the dry run, the whole point of which is to check the target BEFORE running this
+# as root, fail with an arithmetic error on an empty string. /sys/block/<dev>/size is world
+# readable and is in 512-byte sectors.
+size_bytes=""
+if [ -r "/sys/block/$base/size" ]; then
+  size_bytes=$(( $(cat "/sys/block/$base/size") * 512 ))
+else
+  size_bytes=$(blockdev --getsize64 "$DEV" 2>/dev/null)
+fi
+[ -n "$size_bytes" ] && [ "$size_bytes" -gt 0 ] 2>/dev/null ||
+  die "could not read the size of $DEV (tried /sys/block/$base/size and blockdev)"
+size_gb=$(( size_bytes / 1000000000 ))
 iso_gb=$(( $(stat -c %s "$ISO") / 1000000000 ))
 echo "   device ${size_gb} GB, iso ${iso_gb} GB, leaving about $(( size_gb - iso_gb - 1 )) GB for BENCHDATA"
 [ $(( size_gb - iso_gb )) -ge 8 ] || die "need at least 8 GB free after the ISO for images and results"
@@ -91,7 +111,7 @@ mkdir -p "$MNT"/{scripts,images,debs,results,docker}
 
 # ---------------------------------------------------------------- contents
 echo "== scripts"
-for f in topology.sh calibrate.sh bench-usb.sh usb-setup.sh wifi.conf.example; do
+for f in topology.sh calibrate.sh bench-usb.sh usb-setup.sh hwinfo.sh wifi.conf.example; do
   cp "$REPO/benchmark-report/scripts/$f" "$MNT/scripts/" || die "missing scripts/$f"
 done
 # lib.sh is sourced by the sweeps and by calibrate.sh, and it expects ../scripts/topology.sh
@@ -109,6 +129,15 @@ else
   cp "$REPO/benchmark-report/scripts/wifi.conf.example" "$MNT/wifi.conf.example"
   echo "   NO wifi.conf. Copy wifi.conf.example to wifi.conf on the key and fill it in, or the"
   echo "   live session will come up with no network and usb-setup.sh will stop there."
+fi
+
+echo "== ssh key"
+if [ -n "$SSH_KEY" ] && [ -f "$SSH_KEY" ]; then
+  install -m 644 "$SSH_KEY" "$MNT/authorized_keys"
+  echo "   authorized_keys from $SSH_KEY ($(awk '{print $1, $3}' "$SSH_KEY"))"
+else
+  echo "   no ssh key, so the booted machine can only be driven at its own keyboard."
+  echo "   Pass --ssh-key <path to a .pub>, or --no-ssh-key to mean it."
 fi
 
 echo "== jar"

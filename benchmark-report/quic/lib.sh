@@ -70,6 +70,47 @@ wifi_delta() {   # wifi_delta "<before>" "<after>"  ->  irq/rx/tx, or - with no 
   echo "$(( ${a[0]:-0} - ${b[0]:-0} ))/$(( ${a[1]:-0} - ${b[1]:-0} ))/$(( ${a[2]:-0} - ${b[2]:-0} ))"
 }
 
+# The same argument as the wi-fi delta, applied to the USB key the live session runs from.
+#
+# On the replication key docker's data-root is on BENCHDATA, so a measured cell has the server's
+# stdout going to docker's json log on a flash device: the loadtest server prints a SERVERCPU line
+# every 2 seconds, and container create and remove bracket every cell. That cadence is deliberate
+# and load-bearing -- any two lines give a CPU and request delta over whichever window the caller
+# cares about -- so it is not something to turn off. It is something to MEASURE, on exactly the
+# principle this file already applies to the wi-fi link: a cell whose write delta is an outlier was
+# disturbed, whatever the throughput number says.
+#
+# Prior art, and the reason this is here at all: the 9380 standby kit
+# (~/workspaces/fred/dell-xps-9380-standby) wrote its log to /tmp and copied it to the key only
+# after the run, precisely so the stick stayed out of the measured window. That key also found the
+# stick's own SCSI disk holding the USB controller awake.
+#
+# Sectors, not bytes: field 7 of /sys/block/<dev>/stat is sectors written, 512 B each.
+DATA_BLK=""
+if [ -n "${DATA:-}" ] && mountpoint -q "${DATA:-/nonexistent}" 2>/dev/null; then
+  _src=$(findmnt -no SOURCE "$DATA" 2>/dev/null)
+  _base=$(basename "${_src:-}")
+  # sda2 -> sda; the counter is per whole device, which is what we want: docker, the result files
+  # and any stray mount all share one flash controller.
+  while [ -n "$_base" ] && [ ! -e "/sys/block/$_base/stat" ]; do
+    _next=${_base%?}
+    [ "$_next" = "$_base" ] && break
+    _base=$_next
+  done
+  [ -e "/sys/block/$_base/stat" ] && DATA_BLK=$_base
+fi
+
+usb_counters() {   # "<sectors written> <write ios>"
+  [ -n "$DATA_BLK" ] || { echo "0 0"; return; }
+  awk '{print $7" "$5}' "/sys/block/$DATA_BLK/stat" 2>/dev/null || echo "0 0"
+}
+
+usb_delta() {   # usb_delta "<before>" "<after>"  ->  kbWritten/writeIos, or - when not on a key
+  [ -n "$DATA_BLK" ] || { echo -; return; }
+  local b=($1) a=($2)
+  echo "$(( (${a[0]:-0} - ${b[0]:-0}) / 2 ))/$(( ${a[1]:-0} - ${b[1]:-0} ))"
+}
+
 cleanup() {
   docker rm -f "$SRV_NAME" >/dev/null 2>&1 || true
   docker rm -f "$CLI_NAME" >/dev/null 2>&1 || true
@@ -344,10 +385,13 @@ start_server() {
 run_client() {
   local secs=$1; shift
   docker rm -f "$CLI_NAME" >/dev/null 2>&1 || true
-  local samples before after rc pid wbefore wafter
+  local samples before after rc pid wbefore wafter ubefore uafter
+  # mktemp lands in TMPDIR, which on a live session is RAM. Keep it that way: a sample file on the
+  # key would put a write into the window this function is measuring.
   samples=$(mktemp)
   before=$(throttle_counts)
   wbefore=$(wifi_counters)
+  ubefore=$(usb_counters)
   sample_loop "$samples" &
   pid=$!
   timeout "$secs" docker run --name "$CLI_NAME" --network=host --cpuset-cpus=$CLI_CPUS \
@@ -359,7 +403,9 @@ run_client() {
   wait "$pid" 2>/dev/null || true
   after=$(throttle_counts)
   wafter=$(wifi_counters)
+  uafter=$(usb_counters)
   CELL_WIFI=$(wifi_delta "$wbefore" "$wafter")
+  CELL_USB=$(usb_delta "$ubefore" "$uafter")
   docker rm -f "$CLI_NAME" >/dev/null 2>&1 || true
   summarise_samples "$samples"
   CELL_THROTTLE=$(throttle_delta "$before" "$after")
@@ -383,14 +429,15 @@ field() {   # field <line> <key>   -- pulls key=value out of a harness output li
 
 # The columns every sweep appends to a row, in a fixed order so the TSVs stay comparable.
 env_columns() {
-  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s' \
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s' \
     "$CELL_MHZ_MIN" "$CELL_MHZ_MAX" "$CELL_MHZ_MEAN" "$CELL_SRV_MHZ" "$CELL_CLI_MHZ" \
-    "$CELL_TEMP_MAX" "$CELL_THROTTLE" "$CELL_CONTENDED" "$CELL_WAITED" "$CELL_WIFI"
+    "$CELL_TEMP_MAX" "$CELL_THROTTLE" "$CELL_CONTENDED" "$CELL_WAITED" "$CELL_WIFI" \
+    "${CELL_USB:--}"
 }
 
-# wifiDelta is appended rather than inserted, so a TSV written before it existed still parses: the
-# aggregator indexes by header name and every file carries its own header.
-ENV_HEADER='mhzMin\tmhzMax\tmhzMean\tsrvMhz\tcliMhz\ttempMaxC\tthrottleDelta\tcontended\twaited\twifiDelta'
+# wifiDelta and usbDelta are appended rather than inserted, so a TSV written before either existed
+# still parses: the aggregator indexes by header name and every file carries its own header.
+ENV_HEADER='mhzMin\tmhzMax\tmhzMean\tsrvMhz\tcliMhz\ttempMaxC\tthrottleDelta\tcontended\twaited\twifiDelta\tusbDelta'
 
 # The line every sweep prints in its header, so a TSV records the machine state it was taken under
 # rather than leaving it to be recalled. The governor changed from powersave to performance partway

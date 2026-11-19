@@ -16,6 +16,10 @@ WIFI_CONF="${WIFI_CONF:-$DATA/wifi.conf}"
 step() { printf '\n\033[1m== %s\033[0m\n' "$1"; }
 ok()   { printf '  \033[32mOK\033[0m   %s\n' "$1"; }
 bad()  { printf '  \033[31mBAD\033[0m  %s\n' "$1"; }
+# warn was called in the package step before it existed, which on any machine missing linux-tools
+# printed "warn: command not found" in place of the message. Found by reading this against the 9380
+# standby kit's scripts rather than by running it.
+warn() { printf '  \033[33mWARN\033[0m %s\n' "$1"; }
 die()  { printf '  \033[31mFATAL\033[0m %s\n' "$1"; exit 1; }
 
 [ "$(id -u)" = 0 ] || die "run as root"
@@ -143,6 +147,90 @@ fi
 if [ -n "${RESULTS_REMOTE:-}" ]; then
   host=${RESULTS_REMOTE#*@}; host=${host%%:*}
   ping -c1 -W2 "$host" >/dev/null 2>&1 && ok "results target $host reachable" || bad "results target $host not reachable"
+fi
+
+# ---------------------------------------------------------------- 1b. ssh, so the machine can be
+# driven from elsewhere
+#
+# This exists because of the 9380 standby kit, whose setup-live.sh installed authorized_keys and
+# started sshd on every boot, and whose abrun.sh brought the network up only AFTER the last measured
+# window. The point is not convenience: a session driven from its own keyboard means a shell, a
+# terminal emulator and an input stack live on the cores under test. Driving it over ssh from the
+# other machine moves all of that off the host being measured.
+step "ssh"
+if [ -f "$DATA/authorized_keys" ]; then
+  if ! command -v sshd >/dev/null 2>&1 && [ ! -x /usr/sbin/sshd ]; then
+    if ls "$DATA"/debs/openssh-server*.deb >/dev/null 2>&1; then
+      dpkg -i "$DATA"/debs/openssh-server*.deb >/dev/null 2>&1 || true
+    else
+      DEBIAN_FRONTEND=noninteractive apt-get install -y -qq openssh-server >/dev/null 2>&1 || true
+    fi
+  fi
+  if [ -x /usr/sbin/sshd ]; then
+    luser=$(logname 2>/dev/null || echo ubuntu)
+    lhome=$(getent passwd "$luser" | cut -d: -f6)
+    [ -n "$lhome" ] || lhome=/root
+    install -d -m 700 -o "$luser" -g "$luser" "$lhome/.ssh" 2>/dev/null ||
+      install -d -m 700 "$lhome/.ssh"
+    install -m 600 -o "$luser" -g "$luser" "$DATA/authorized_keys" "$lhome/.ssh/authorized_keys" 2>/dev/null ||
+      install -m 600 "$DATA/authorized_keys" "$lhome/.ssh/authorized_keys"
+    systemctl enable --now ssh >/dev/null 2>&1 || /usr/sbin/sshd 2>/dev/null
+    if systemctl is-active ssh >/dev/null 2>&1 || pgrep -x sshd >/dev/null 2>&1; then
+      ok "sshd running, key installed for $luser -- ssh $luser@${ip4%%/*}"
+    else
+      bad "sshd did not start; you will have to drive this machine at its own keyboard"
+    fi
+  else
+    bad "openssh-server unavailable, no remote access"
+  fi
+else
+  warn "no $DATA/authorized_keys, so no ssh. Pass one to usb-build.sh to drive this machine remotely"
+fi
+
+# ---------------------------------------------------------------- 1c. quiet the devices nobody is
+# measuring
+#
+# Straight from the standby kit's quiet.sh, which found that Alpine shipped no udev rules for USB
+# runtime power management and that the fingerprint reader and the stick's own SCSI disk therefore
+# held the USB controller awake -- PC10 residency went from 0% to 92% once they were released.
+#
+# For a CPU-bound throughput benchmark deep package C-states are not the goal, but the interrupt
+# sources are the same ones, and they are the same on both machines only if both are quieted. What
+# is left awake is recorded either way, because a device that will not suspend is a fact about the
+# run and not something to discover afterwards.
+step "device quiet"
+for f in /sys/bus/usb/devices/*/power/control /sys/bus/scsi/devices/*/power/control; do
+  [ -w "$f" ] && echo auto > "$f" 2>/dev/null
+done
+awake=$(for d in /sys/bus/usb/devices/*; do
+          [ -f "$d/product" ] || continue
+          [ "$(cat "$d/power/runtime_status" 2>/dev/null)" = suspended ] && continue
+          printf '%s(%s) ' "$(basename "$d")" "$(tr -d '\n' < "$d/product")"
+        done)
+if [ -n "$awake" ]; then
+  warn "usb devices not suspended: $awake"
+else
+  ok "all usb devices suspended"
+fi
+# The key itself is necessarily awake -- it is the root filesystem's source and docker's data-root.
+# That is why lib.sh measures a per-cell usbDelta rather than pretending the key is out of the way.
+ok "recorded; lib.sh measures the key's write delta per cell"
+
+# ---------------------------------------------------------------- 1d. what this machine is
+#
+# Before any cell, not after. REPLICATION.md compares two machines and claims only the hardware
+# differs; that is checkable only if each machine's parts and BIOS state are on the record. BIOSHASH
+# changes if any BIOS setting differs, which is the guard against comparing across a settings change
+# nobody remembers making.
+step "hardware and BIOS record"
+if [ -x "$DATA/scripts/hwinfo.sh" ]; then
+  mkdir -p "$DATA/results"
+  hw="$DATA/results/hwinfo-$(cat /sys/class/dmi/id/product_name 2>/dev/null | tr ' ' '-')-$(date -u +%Y%m%dT%H%M%SZ).txt"
+  sh "$DATA/scripts/hwinfo.sh" > "$hw" 2>&1
+  ok "$(basename "$hw")"
+  grep -E '^(HWSUM|BIOSHASH|bios:|memory)' "$hw" | sed 's/^/       /'
+else
+  bad "scripts/hwinfo.sh missing from the key; the hardware this ran on will not be on the record"
 fi
 
 # ---------------------------------------------------------------- 2. packages
