@@ -186,6 +186,12 @@ echo "== debs (offline fallback)"
 # This only works because this host and the target image are the same release. Checked rather than
 # assumed -- debs from a different release would install and then break in ways that look like
 # benchmark noise.
+#
+# Known limit: --download-only fetches what THIS host would need to install, so a dependency already
+# present here but absent from the live image is not staged. It is why openssh-server came with its
+# whole closure (nothing ssh-related is installed on thor) while jq's libraries did not. The offline
+# path stays a fallback for that reason; the ones that matter are iw, for the regulatory-domain
+# deadlock, and openssh-server, and both are complete.
 host_rel=$(. /etc/os-release 2>/dev/null && echo "${VERSION_CODENAME:-}")
 iso_rel=$(basename "$ISO" | grep -oE '[0-9]{2}\.[0-9]{2}' | head -1)
 if [ -z "$host_rel" ]; then
