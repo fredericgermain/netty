@@ -1,7 +1,7 @@
 #!/bin/bash
 # The whole live-session bring-up, in one word.
 #
-#   sudo mount LABEL=BENCHDATA /mnt && sudo /mnt/go
+#   sudo mount LABEL=CIDATA /mnt && sudo /mnt/go
 #
 # This exists because the documented alternative was three commands typed at a bare tty, on a
 # laptop, with no desktop and no shell history -- `mkdir -p /mnt/benchdata`, a `mount` naming that

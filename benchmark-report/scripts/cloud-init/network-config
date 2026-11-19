@@ -1,0 +1,16 @@
+# NoCloud seed, read from the filesystem labelled CIDATA alongside user-data and meta-data.
+#
+# This exists to stop cloud-init configuring the network, and it has to take this shape. The
+# documented `network: {config: disabled}` is SYSTEM config -- it belongs in
+# /etc/cloud/cloud.cfg.d/, which is on the live image's read-only root and cannot be edited here.
+# `cloud-init schema --schema-type network-config` rejects it outright: "'version' is a required
+# property, Additional properties are not allowed ('config' was unexpected)".
+#
+# So instead of disabling the module, hand it a valid config that describes nothing. cloud-init uses
+# the seed's config rather than generating its usual DHCP fallback, renders no interfaces, and names
+# NetworkManager as the renderer so it writes no netplan files to fight with. NetworkManager keeps
+# control, and usb-setup.sh -- which is the only thing that knows the regulatory domain, the
+# power-save settings and the IRQ steering this measurement needs -- configures wi-fi itself.
+network:
+  version: 2
+  renderer: NetworkManager

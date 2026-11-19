@@ -1,0 +1,25 @@
+#cloud-config
+# Boot the replication key and type nothing.
+#
+# Read by cloud-init from the filesystem labelled CIDATA, which is also the results volume. Verified
+# against ubuntu-26.04.1-desktop-amd64.iso rather than assumed:
+#
+#   * NoCloud is first in /etc/cloud/cloud.cfg's datasource_list.
+#   * ds-identify's dscheck_NoCloud matches filesystem label "cidata CIDATA" through
+#     has_fs_with_label, with no filesystem-type restriction -- so this ext4 volume qualifies.
+#   * cloud-init-generator links cloud-init.target into multi-user.target.wants, so booting with
+#     systemd.unit=multi-user.target is what makes this run, not what stops it.
+#   * /etc/cloud/cloud-init.disabled is absent from both squashfs layers.
+#
+# There is deliberately no `autoinstall:` key here. That is the key that would start an unattended
+# installation, and this seed boots a machine with Windows on its internal disk.
+
+runcmd:
+  # cloud-init mounts the CIDATA filesystem itself to read this seed, so a bare `mount` can fail
+  # with "already mounted" -- find an existing mount first and only mount if there is none.
+  #
+  # The log goes to the key, not to /var/log/cloud-init-output.log, which lives in RAM and dies with
+  # the session. A result whose only record is in a RAM-resident live session is exactly the failure
+  # ENVIRONMENT.md 7.3 is written about. It is written before any cell, so it cannot show up in a
+  # cell's usbDelta.
+  - [ sh, -c, 'p=$(findmnt -rno TARGET LABEL=CIDATA | head -1); [ -n "$p" ] || { mkdir -p /mnt; mount LABEL=CIDATA /mnt && p=/mnt; }; [ -n "$p" ] || exit 1; mkdir -p "$p/results"; "$p/go" > "$p/results/boot-$(date -u +%Y%m%dT%H%M%SZ).log" 2>&1' ]

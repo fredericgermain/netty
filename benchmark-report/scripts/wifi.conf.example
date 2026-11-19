@@ -1,4 +1,4 @@
-# Copy to wifi.conf on the BENCHDATA partition. NEVER commit the real file: it holds a PSK.
+# Copy to wifi.conf on the CIDATA partition (the key's data volume). NEVER commit the real file: it holds a PSK.
 # usb-setup.sh reads it to bring the link up before anything else, because results shipping,
 # package installation and remote access all depend on it.
 

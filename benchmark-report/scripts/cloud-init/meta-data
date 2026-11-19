@@ -1,0 +1,7 @@
+# NoCloud seed, read by cloud-init from the filesystem labelled CIDATA.
+#
+# instance-id is deliberately constant. runcmd is a per-instance module, which would normally mean
+# it runs once and never again -- but /var/lib/cloud lives in the RAM-resident root of a `toram`
+# live session, so every boot is a fresh instance and runcmd runs every time, on both machines.
+instance-id: netty-replication-key
+local-hostname: benchkey

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build the replication USB key: a stock Ubuntu live ISO, plus a persistent BENCHDATA partition
+# Build the replication USB key: a stock Ubuntu live ISO, plus a persistent CIDATA partition
 # carrying everything the sweeps need.
 #
 #   scripts/usb-build.sh --iso ubuntu-26.04.1-desktop-amd64.iso --dev /dev/sdX --yes
@@ -12,8 +12,13 @@
 # construction. A stock ISO plus a data partition keeps the image byte-identical and puts everything
 # variable in one place that can be inspected.
 #
+# Why the data partition is called CIDATA and not something descriptive: that is the only filesystem
+# label cloud-init's NoCloud datasource looks for. The partition is the results volume AND the
+# cloud-init seed, so booting the key runs the whole bring-up with nothing typed. Dual duty, one
+# partition, no repartitioning.
+#
 # Boot it with `toram` on the kernel command line so the session is RAM-resident and no state
-# accumulates between the two machines. BENCHDATA stays on the key and is the only thing that
+# accumulates between the two machines. CIDATA stays on the key and is the only thing that
 # persists, which is deliberate: it holds the raw output.
 
 set -u
@@ -81,7 +86,7 @@ fi
   die "could not read the size of $DEV (tried /sys/block/$base/size and blockdev)"
 size_gb=$(( size_bytes / 1000000000 ))
 iso_gb=$(( $(stat -c %s "$ISO") / 1000000000 ))
-echo "   device ${size_gb} GB, iso ${iso_gb} GB, leaving about $(( size_gb - iso_gb - 1 )) GB for BENCHDATA"
+echo "   device ${size_gb} GB, iso ${iso_gb} GB, leaving about $(( size_gb - iso_gb - 1 )) GB for data"
 [ $(( size_gb - iso_gb )) -ge 8 ] || die "need at least 8 GB free after the ISO for images and results"
 
 if [ "$CONFIRM" != 1 ]; then
@@ -100,14 +105,14 @@ sync
 # Ubuntu's desktop ISO is GPT isohybrid, so after dd the trailing space is unallocated and a further
 # partition can be added without touching what the ISO wrote. sgdisk moves the backup GPT header to
 # the real end of the device first, which dd left pointing at the end of the ISO image.
-echo "== adding BENCHDATA"
+echo "== adding the data partition (labelled CIDATA)"
 sgdisk --move-second-header "$DEV" >/dev/null 2>&1 || true
-sgdisk --new=0:0:0 --change-name=0:BENCHDATA "$DEV" >/dev/null || die "sgdisk could not add a partition"
+sgdisk --new=0:0:0 --change-name=0:CIDATA "$DEV" >/dev/null || die "sgdisk could not add a partition"
 partprobe "$DEV" 2>/dev/null || true
 sleep 2
-part=$(lsblk -lno NAME,PARTLABEL "$DEV" | awk '$2 == "BENCHDATA" {print "/dev/"$1; exit}')
+part=$(lsblk -lno NAME,PARTLABEL "$DEV" | awk '$2 == "CIDATA" {print "/dev/"$1; exit}')
 [ -n "$part" ] || die "the new partition did not appear; check lsblk $DEV"
-mkfs.ext4 -q -L BENCHDATA "$part" || die "mkfs failed on $part"
+mkfs.ext4 -q -L CIDATA "$part" || die "mkfs failed on $part"
 
 MNT=$(mktemp -d)
 mount "$part" "$MNT" || die "could not mount $part"
@@ -127,6 +132,13 @@ cp "$REPO/benchmark-report/REPLICATION.md" "$MNT/"
 # The launcher goes at the partition root, not in scripts/, because its whole purpose is to be
 # short to type at a tty: `sudo /mnt/go`.
 install -m 755 "$REPO/benchmark-report/scripts/go" "$MNT/go"
+
+# The cloud-init seed, which is the reason the partition is labelled CIDATA. All three files go at
+# the volume root because that is where NoCloud looks for them. With these present the key boots
+# straight into `go` and nothing has to be typed; without them the one-line mount still works.
+for f in user-data meta-data network-config; do
+  install -m 644 "$REPO/benchmark-report/scripts/cloud-init/$f" "$MNT/$f" || die "missing cloud-init/$f"
+done
 chmod +x "$MNT"/scripts/*.sh
 
 echo "== wi-fi config"
@@ -221,7 +233,7 @@ sync
 cat <<EOF
 
 == done
-   Key: $DEV, data partition $part labelled BENCHDATA
+   Key: $DEV, data partition $part labelled CIDATA
 
    Boot it, appending to the kernel command line (press 'e' at the GRUB entry on the Ubuntu
    live menu):
@@ -232,11 +244,13 @@ cat <<EOF
    desktop session on the machine under test is resident memory, background services and wakeups
    on cores that are fully committed, and it does nothing for a benchmark.
 
-   Then, in the live session, one line:
+   Then type nothing. The CIDATA label makes this key a cloud-init NoCloud seed, so cloud-init
+   mounts it, runs `go`, and logs to results/boot-<timestamp>.log on the key itself. `go` does the
+   bring-up and then the readiness gate.
 
-       sudo mount LABEL=BENCHDATA /mnt && sudo /mnt/go
+   If no results/boot-*.log appears, cloud-init did not fire. The fallback is one line:
 
-   go runs the bring-up and then the readiness gate, and tells you what is left.
+       sudo mount LABEL=CIDATA /mnt && sudo /mnt/go
 
    Test the whole path on the 9380 first. It establishes nothing about the transports but it is
    where the key's own problems will surface, and the clock cap for that machine has to be derived

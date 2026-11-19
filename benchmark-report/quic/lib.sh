@@ -72,7 +72,7 @@ wifi_delta() {   # wifi_delta "<before>" "<after>"  ->  irq/rx/tx, or - with no 
 
 # The same argument as the wi-fi delta, applied to the USB key the live session runs from.
 #
-# On the replication key docker's data-root is on BENCHDATA, so a measured cell has the server's
+# On the replication key docker's data-root is on CIDATA (the key's data volume), so a measured cell has the server's
 # stdout going to docker's json log on a flash device: the loadtest server prints a SERVERCPU line
 # every 2 seconds, and container create and remove bracket every cell. That cadence is deliberate
 # and load-bearing -- any two lines give a CPU and request delta over whichever window the caller

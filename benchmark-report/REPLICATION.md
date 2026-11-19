@@ -142,7 +142,7 @@ Record the outcome per cell before looking at the next cell, so the criterion ca
 ## The key
 
 Built by `scripts/usb-build.sh`, which writes a stock Ubuntu live ISO to the device and adds a
-persistent `BENCHDATA` partition beside it.
+persistent `CIDATA` partition beside it.
 
 The image is **`ubuntu-26.04.1-desktop-amd64.iso`**, 6,482,409,472 bytes, sha256
 `601e30fbf5d97759367c632e2c33630665039b7e2158fd068403da3ccf1bda1f`, checked against
@@ -151,7 +151,7 @@ before writing it: a truncated ISO costs a boot cycle on the other machine to di
 
 What has to fit beside it, measured rather than estimated:
 
-| on `BENCHDATA` | size |
+| on `CIDATA` | size |
 |---|---|
 | `eclipse-temurin:21-jdk` | 729 MB |
 | `eclipse-temurin:21-jdk-alpine` | 554 MB |
@@ -163,14 +163,14 @@ So about 2.6 GB of image tars, and the graph they unpack into. A 16 GB key clear
 check with around 9.5 GB for the partition and works; **32 GB is the comfortable size** once the
 graph and several rounds of results are on it. Nothing is remastered: a rebuilt squashfs is a second
 thing that can silently differ between two boots, and the whole value of one key on two machines is
-that the image is byte-identical. Everything variable lives on `BENCHDATA`, where it can be
+that the image is byte-identical. Everything variable lives on `CIDATA`, where it can be
 inspected.
 
 Boot with **`toram systemd.unit=multi-user.target`** on the kernel command line. `toram` makes the
 session RAM-resident so no state accumulates between the two machines; `multi-user.target` stops
 GNOME ever starting, which matters more than it sounds on a 16 GB machine -- a desktop session is
 resident memory, background services and periodic wakeups on the cores under test, and none of it
-is doing anything for a benchmark. `BENCHDATA` is then the only thing that persists, which is
+is doing anything for a benchmark. `CIDATA` is then the only thing that persists, which is
 deliberate: it holds the raw output, the docker graph and the jar.
 
 ### How to boot it without breaking the machine
@@ -191,7 +191,7 @@ already booted this exact 9380. None of it is optional on a machine that dual-bo
   append the kernel arguments above.
 - **The internal disk is never mounted, never written, never touched.** Booted to
   `multi-user.target` nothing auto-mounts it, and every path this protocol writes to is either RAM
-  or `BENCHDATA`. Check once per machine with `findmnt | grep nvme` returning nothing.
+  or `CIDATA`. Check once per machine with `findmnt | grep nvme` returning nothing.
 
 ### The two machines are not memory-equivalent
 
@@ -219,16 +219,57 @@ against comparing across a settings change nobody remembers making. thor's basel
 | **netboot / PXE** | Ruled out. The 9380 has no Ethernet port and PXE cannot join a WPA2 network, so it needs a USB-C dongle and a netboot server. It also defeats the premise: an image fetched at boot is not a frozen environment, and pinning it to make it one is this key with extra steps. |
 | **Alpine from RAM** | Ruled out 2026-11-16 on the grounds that `apk add libsmbios` installs the shared library and **no binaries**, so `smbios-thermal-ctl` does not exist there. That reasoning is now obsolete -- see below, the thermal mode is set through sysfs and needs no package -- but the conclusion stands on the other grounds: the wi-fi path, `linux-firmware` for `ath10k`, and NetworkManager. Alpine stays where it belongs, inside the container images. |
 
-In the session, one line:
+In the session: **type nothing**.
+
+The data partition is labelled `CIDATA`, which makes the key a cloud-init **NoCloud** seed as well as
+the results volume. cloud-init finds it, runs `go`, and logs to `results/boot-<timestamp>.log` on the
+key. `go` runs `usb-setup.sh` and then the readiness gate, and records what is still missing.
+
+If no `results/boot-*.log` appears, cloud-init did not fire and the fallback is one line:
 
 ```
-sudo mount LABEL=BENCHDATA /mnt && sudo /mnt/go
+sudo mount LABEL=CIDATA /mnt && sudo /mnt/go
 ```
 
-`go` runs `usb-setup.sh` and then the readiness gate, and prints what is still missing. It is one
-line because the alternative was three commands typed at a bare tty on the machine under test, with
-no desktop and no shell history; `usb-setup.sh` is self-locating, so the mount point is not fixed
-and `/mnt` is used only because it exists everywhere. `usb-setup.sh` does Wi-Fi first, on purpose --
+`usb-setup.sh` is self-locating, so the mount point is not fixed; `/mnt` only because it exists
+everywhere.
+
+### Why this works, checked against this exact ISO
+
+Worth recording, because every one of these could have gone the other way and the next session
+should not have to re-derive them:
+
+| check | result |
+|---|---|
+| cloud-init present | yes -- 121 paths in `minimal.squashfs`, `/etc/cloud/cloud.cfg` in the live layer |
+| `datasource_list` | `NoCloud` is **first** |
+| how NoCloud is detected | `ds-identify`'s `dscheck_NoCloud` matches filesystem label `cidata CIDATA` through `has_fs_with_label`, with **no filesystem-type restriction** -- so an ext4 volume qualifies, and the partition did not have to be reformatted or split |
+| unit wiring | `cloud-init-generator` links `cloud-init.target` into **`multi-user.target.wants`**. So `systemd.unit=multi-user.target` is what makes this run, not what prevents it |
+| suppressed? | `/etc/cloud/cloud-init.disabled` is absent from both squashfs layers |
+| does `runcmd` stall? | No. `cloud-final.service` carries `Wants=network-online.target`, but `NetworkManager-wait-online` is **not enabled** in this image, so nothing blocks waiting for the wi-fi that `usb-setup.sh` has not configured yet |
+
+Three details in the seed that are not obvious:
+
+- **`network: {config: disabled}` does not work here.** That is *system* config and belongs in
+  `/etc/cloud/cloud.cfg.d/`, which is on the read-only root.
+  `cloud-init schema --schema-type network-config` rejects it outright: "`'version' is a required
+  property`, `Additional properties are not allowed ('config' was unexpected)`". The seed instead
+  carries a valid config that describes **nothing** -- `version: 2`, `renderer: NetworkManager`, no
+  interfaces -- so cloud-init uses it in place of its DHCP fallback, writes no netplan, and leaves
+  NetworkManager in charge for `usb-setup.sh` to drive.
+- **`runcmd` checks for an existing mount first.** cloud-init mounts `CIDATA` itself to read the
+  seed, so a bare `mount LABEL=CIDATA /mnt` can fail with "already mounted".
+- **The boot log goes to the key.** `runcmd` output otherwise lands in
+  `/var/log/cloud-init-output.log`, in RAM, and dies with the session -- the exact failure §7.3 of
+  `ENVIRONMENT.md` is about. It is written before any cell, so it cannot appear in a cell's
+  `usbDelta`.
+
+There is deliberately **no `autoinstall:` key** in the seed. That is the key that would begin an
+unattended installation, and this key boots a machine with Windows on its internal disk. With
+`multi-user.target` the desktop installer is a GUI snap that never starts. The F12 one-time boot and
+Secure-Boot-on rules above remain the actual protection, not this.
+
+`usb-setup.sh` does Wi-Fi first, on purpose --
 package installation, result shipping and reaching the machine at all depend on it, and a session
 that quietly has no network wastes the boot.
 
@@ -284,6 +325,6 @@ Known prerequisites, each of which has already bitten this work once:
   `SO_BACKLOG` the sweeps request, which truncates the accept queue silently.
 - **`RESULTS_DIR` on persistent storage.** Nothing in a RAM-resident session survives a reboot, and
   section 7.3 of `ENVIRONMENT.md` exists because numbers have already reached documents here without
-  their raw record. `usb-setup.sh` points it at `BENCHDATA/results`, on the key itself.
+  their raw record. `usb-setup.sh` points it at `CIDATA/results`, on the key itself.
 - **A cell whose `wifiDelta` is far above the others is suspect**, and should be re-run rather than
   averaged in with a footnote.

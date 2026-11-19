@@ -1,6 +1,6 @@
 #!/bin/bash
 # Bring a freshly booted live session up to a state where it can run the replication sweeps.
-# Run as root inside the live session, from the BENCHDATA partition:
+# Run as root inside the live session, from the CIDATA partition:
 #
 #   sudo /mnt/benchdata/scripts/usb-setup.sh
 #
@@ -32,8 +32,8 @@ die()  { printf '  \033[31mFATAL\033[0m %s\n' "$1"; exit 1; }
 # ---------------------------------------------------------------- 0. the data partition
 step "data partition"
 if [ ! -d "$DATA" ] || ! mountpoint -q "$DATA"; then
-  dev=$(blkid -L BENCHDATA 2>/dev/null)
-  [ -n "$dev" ] || die "no partition labelled BENCHDATA found. usb-build.sh creates it."
+  dev=$(blkid -L CIDATA 2>/dev/null)
+  [ -n "$dev" ] || die "no partition labelled CIDATA found. usb-build.sh creates it."
   mkdir -p "$DATA"
   mount "$dev" "$DATA" || die "could not mount $dev at $DATA"
 fi
