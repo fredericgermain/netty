@@ -34,7 +34,12 @@ SSH_KEY="${SSH_KEY:-$HOME/.ssh/id_ed25519_fred_thor.pub}"
 #   iouring-control:latest  cell C's client, echo_bench_stock from pinned upstream SHAs. Build it
 #                           with: docker build --network=host -t iouring-control:latest c-control/
 IMAGES="${IMAGES:-eclipse-temurin:21-jdk eclipse-temurin:21-jdk-alpine iouring-control:latest}"
-DEBS="libsmbios-bin iw ethtool jq unzip"
+# No libsmbios-bin: it does not exist in Ubuntu 26.04, and the thermal mode now goes through
+# /sys/firmware/acpi/platform_profile, which needs no package. openssh-server is here because
+# usb-setup.sh's ssh step needs it offline, and iw because the regulatory-domain fix needs it --
+# which is a deadlock otherwise: no iw until apt works, no apt until wi-fi works, and wi-fi may be
+# what the regdomain is blocking.
+DEBS="iw ethtool jq unzip openssh-server"
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -174,12 +179,34 @@ else
 fi
 
 echo "== debs (offline fallback)"
-# Best effort, and deliberately only a fallback: apt-get download does not resolve dependencies, so
-# a package needing new libs will still want the network. The primary path is wi-fi plus apt, which
-# is why usb-setup.sh brings the link up before it installs anything.
-( cd "$MNT/debs" && apt-get download $DEBS >/dev/null 2>&1 ) &&
-  echo "   $(ls "$MNT"/debs/*.deb 2>/dev/null | wc -l) debs" ||
-  echo "   none downloaded; the live session will need the network for packages"
+# `apt-get install --download-only` rather than `apt-get download`, because the latter resolves no
+# dependencies: it fetched openssh-server's .deb and none of the libraries it needs, which is an
+# offline fallback that cannot actually install anything. --download-only pulls the whole closure.
+#
+# This only works because this host and the target image are the same release. Checked rather than
+# assumed -- debs from a different release would install and then break in ways that look like
+# benchmark noise.
+host_rel=$(. /etc/os-release 2>/dev/null && echo "${VERSION_CODENAME:-}")
+iso_rel=$(basename "$ISO" | grep -oE '[0-9]{2}\.[0-9]{2}' | head -1)
+if [ -z "$host_rel" ]; then
+  echo "   skipped: cannot read this host's release from /etc/os-release"
+elif ! grep -q "$iso_rel" /etc/os-release 2>/dev/null; then
+  echo "   SKIPPED: this host is '$host_rel' but the ISO is $iso_rel. Debs from a different release"
+  echo "            would install and then misbehave. The live session will use apt over wi-fi."
+else
+  mkdir -p "$MNT/debs/partial"
+  if apt-get install -y --download-only --reinstall \
+       -o Dir::Cache::archives="$MNT/debs" -o Debug::NoLocking=1 $DEBS >/dev/null 2>&1; then
+    rmdir "$MNT/debs/partial" 2>/dev/null
+    echo "   $(ls "$MNT"/debs/*.deb 2>/dev/null | wc -l) debs ($(du -sh "$MNT/debs" 2>/dev/null | cut -f1)), release $host_rel"
+  else
+    rmdir "$MNT/debs/partial" 2>/dev/null
+    echo "   FAILED. Re-run just this part, or the live session needs the network for:"
+    echo "            $DEBS"
+    echo "   That is survivable but note the deadlock: the regulatory-domain fix needs iw, iw needs"
+    echo "   apt, and apt needs the wi-fi the regdomain may be refusing."
+  fi
+fi
 
 sync
 cat <<EOF

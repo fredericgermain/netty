@@ -235,7 +235,10 @@ fi
 
 # ---------------------------------------------------------------- 2. packages
 step "packages"
-need="libsmbios-bin iw ethtool jq unzip"
+# libsmbios-bin is deliberately absent: it does not exist in Ubuntu 26.04, and the thermal mode is
+# now set through /sys/firmware/acpi/platform_profile, which needs no package at all. Asking for it
+# here would have failed the package step on every boot of this image.
+need="iw ethtool jq unzip"
 optional="linux-tools-common linux-tools-generic"
 missing=""
 for p in $need; do dpkg -s "$p" >/dev/null 2>&1 || missing="$missing $p"; done
@@ -256,9 +259,17 @@ if [ -n "$missing" ]; then
 fi
 for p in $need; do dpkg -s "$p" >/dev/null 2>&1 && ok "$p" || bad "$p MISSING"; done
 for p in $optional; do dpkg -s "$p" >/dev/null 2>&1 && ok "$p (optional)" || warn "$p absent; perf profiling unavailable, anchor cells unaffected"; done
-# libsmbios is the only fan lever this hardware exposes, and without it both machines sit on the
-# stock curve, which leaves the fans at 0 RPM until about 97 C.
-command -v smbios-thermal-ctl >/dev/null 2>&1 && ok "smbios-thermal-ctl available" || bad "smbios-thermal-ctl MISSING: the two machines cannot be put in the same thermal mode"
+# The thermal lever, which has to exist or the two machines cannot be put in the same thermal mode
+# and the stock curve leaves the fans at 0 RPM until about 97 C. It is sysfs, not a package: see the
+# note in bench-usb.sh. Verified on thor that writing platform_profile drives the same Dell BIOS
+# attribute libsmbios used to set.
+if [ -r /sys/firmware/acpi/platform_profile ]; then
+  ok "platform_profile available: $(cat /sys/firmware/acpi/platform_profile) of [$(cat /sys/firmware/acpi/platform_profile_choices 2>/dev/null)]"
+elif command -v smbios-thermal-ctl >/dev/null 2>&1; then
+  ok "smbios-thermal-ctl available (older path; platform_profile absent)"
+else
+  bad "no thermal lever: neither /sys/firmware/acpi/platform_profile nor smbios-thermal-ctl. The two machines cannot be put in the same thermal mode"
+fi
 
 # ---------------------------------------------------------------- 3. docker on persistent storage
 #

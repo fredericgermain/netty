@@ -217,7 +217,7 @@ against comparing across a settings change nobody remembers making. thor's basel
 | **Ubuntu desktop live** | What study 05 already booted on this 9380 with wi-fi working, so the firmware path is known-good on the exact hardware. Ships NetworkManager, which `usb-setup.sh` targets, and the full `linux-firmware` including the `ath10k` blobs the QCA6174 needs. Booted to `multi-user.target` its size costs RAM for the squashfs and nothing else. |
 | **Ubuntu server live** | Saves a few GB and is viable, but uses netplan and systemd-networkd rather than NetworkManager, so the wi-fi path in `usb-setup.sh` would have to be rewritten against `wpa_supplicant`, and its slimmer `linux-firmware` needs checking for `ath10k` rather than assumed. A rewrite of the one component that was singled out as must-work, to save space on a medium that has plenty. |
 | **netboot / PXE** | Ruled out. The 9380 has no Ethernet port and PXE cannot join a WPA2 network, so it needs a USB-C dongle and a netboot server. It also defeats the premise: an image fetched at boot is not a frozen environment, and pinning it to make it one is this key with extra steps. |
-| **Alpine from RAM** | Ruled out on evidence, 2026-11-16: `apk add libsmbios` installs the shared library and **no binaries**, so `smbios-thermal-ctl` does not exist there. That is the only fan lever this hardware exposes, and the two machines have to be in the same thermal mode to be compared. Alpine stays where it belongs, inside the container images. |
+| **Alpine from RAM** | Ruled out 2026-11-16 on the grounds that `apk add libsmbios` installs the shared library and **no binaries**, so `smbios-thermal-ctl` does not exist there. That reasoning is now obsolete -- see below, the thermal mode is set through sysfs and needs no package -- but the conclusion stands on the other grounds: the wi-fi path, `linux-firmware` for `ath10k`, and NetworkManager. Alpine stays where it belongs, inside the container images. |
 
 In the session: `sudo /mnt/benchdata/scripts/usb-setup.sh`. It does Wi-Fi first, on purpose --
 package installation, result shipping and reaching the machine at all depend on it, and a session
@@ -261,9 +261,14 @@ Known prerequisites, each of which has already bitten this work once:
 
 - **Derive the 9380's clock cap** with `sweeps/coresweep3.sh` from the `dell-xps-9500-bench-rig`
   repo, then add it to the table in `bench-usb.sh`. Expect it to be well below 62%.
-- **Install `libsmbios-bin` into the USB image.** It is absent from thor as of 2026-11-16, and
-  without `smbios-thermal-ctl` both fans stay on the stock curve, which leaves them at 0 RPM until
-  about 97 C. The two machines must be in the same thermal mode or they are not comparable.
+- **~~Install `libsmbios-bin` into the USB image.~~ Done differently, 2026-11-19: the package does
+  not exist in Ubuntu 26.04 at all, so this was never going to work.** The thermal mode now goes
+  through `/sys/firmware/acpi/platform_profile`, which is in-kernel and needs no package, so it
+  works on a bare live image. Verified on thor that writing `performance` there drives the same BIOS
+  setting libsmbios used to: dell-wmi-sysman's `ThermalManagement` attribute moved
+  `Optimized` -> `UltraPerformance` and back. `bench-usb.sh` now treats a wrong profile as a BAD
+  that blocks rather than a WARN about a missing tool -- which is what it had been doing silently on
+  both machines while the documentation claimed the mode was being set.
 - **Stop the `adb-relay` container on thor**, or every cell is marked `CONTENDED` and discarded by
   `lib.sh`'s own rule.
 - **`somaxconn` to 8192**, which `bench-usb.sh start` does. thor currently sits at 4096, below the

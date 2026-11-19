@@ -23,6 +23,24 @@ warn() { printf '  \033[33mWARN\033[0m %s\n' "$1"; }
 
 MODEL=$(cat /sys/class/dmi/id/product_name 2>/dev/null | tr -s ' ' | sed 's/ *$//')
 
+# The thermal lever. See the long note in the thermal check below for why this is sysfs and not
+# libsmbios: the package no longer exists in Ubuntu 26.04.
+PLATFORM_PROFILE=/sys/firmware/acpi/platform_profile
+THERMAL_ATTR=/sys/class/firmware-attributes/dell-wmi-sysman/attributes/ThermalManagement/current_value
+
+# The Dell-specific name for whatever platform_profile is currently set to, for the record. Readable
+# only as root, so this prints "?" rather than failing a check when run unprivileged.
+thermal_attr() { sudo -n cat "$THERMAL_ATTR" 2>/dev/null || echo '?'; }
+
+# set_thermal <platform_profile value> <smbios mode> -- whichever lever this machine has.
+set_thermal() {
+  if [ -w "$PLATFORM_PROFILE" ] || sudo -n test -w "$PLATFORM_PROFILE" 2>/dev/null; then
+    sudo -n sh -c "echo $1 > $PLATFORM_PROFILE" 2>/dev/null
+  elif command -v smbios-thermal-ctl >/dev/null 2>&1; then
+    sudo -n smbios-thermal-ctl --set-thermal-mode="$2" >/dev/null 2>&1
+  fi
+}
+
 # The sustainable all-core clock, as a percentage of the part's maximum, PER MACHINE.
 #
 # This table is deliberately not a default. 62 was measured on the XPS 15 9500: it is the highest
@@ -94,14 +112,32 @@ report_tuning() {
     echo "       Refusing to borrow another machine's figure. Derive it, then add it to this script."
   fi
 
-  local mode
-  if command -v smbios-thermal-ctl >/dev/null 2>&1; then
+  # Thermal mode, through the kernel rather than through libsmbios.
+  #
+  # `smbios-thermal-ctl` from libsmbios-bin was the documented lever here, and it is GONE: the
+  # package does not exist in Ubuntu 26.04 (`apt-cache search smbios` offers only dmidecode and
+  # some Rust/Go bindings), and it is not on thor since the 26.04 upgrade. Every call site guarded
+  # itself with `command -v`, so nothing ever failed loudly -- the thermal mode was simply never
+  # being set, on either machine, while the documentation said it was.
+  #
+  # /sys/firmware/acpi/platform_profile is the in-kernel replacement and is strictly better: no
+  # package, so it works on a bare live image. Verified on thor 2026-11-19 that it drives the same
+  # BIOS setting -- writing `performance` moved dell-wmi-sysman's ThermalManagement attribute from
+  # Optimized to UltraPerformance, and restoring `balanced` moved it back. Mapping:
+  #   performance <-> UltraPerformance,  balanced <-> Optimized,  cool <-> Cool,  quiet <-> Quiet
+  local mode=""
+  if [ -r "$PLATFORM_PROFILE" ]; then
+    mode=$(cat "$PLATFORM_PROFILE" 2>/dev/null)
+    [ "$mode" = performance ] &&
+      ok "platform_profile = $mode (dell ThermalManagement=$(thermal_attr))" ||
+      bad "platform_profile = ${mode:-unreadable}, wanted performance"
+  elif command -v smbios-thermal-ctl >/dev/null 2>&1; then
     mode=$(sudo -n smbios-thermal-ctl -g 2>/dev/null | grep -A1 'Current Thermal Modes' | tail -1 | tr -d '\t ')
-    [ "$mode" = "Performance" ] && ok "dell thermal mode = $mode" || bad "dell thermal mode = ${mode:-unreadable}, wanted Performance"
+    [ "$mode" = "Performance" ] && ok "dell thermal mode = $mode (via libsmbios)" || bad "dell thermal mode = ${mode:-unreadable}, wanted Performance"
   else
-    # Measured on the 9500: Performance moves fan onset from 97 C to 90 C. Without the tool the fans
-    # stay on the lazy stock curve, which is a real difference between the two machines' conditions.
-    warn "smbios-thermal-ctl absent (libsmbios not installed, or the BIOS does not expose it). The stock fan curve leaves both fans at 0 RPM until ~97 C on Dell hardware; record that this run had no thermal-mode control."
+    # Measured on the 9500: Performance moves fan onset from 97 C to 90 C. With no lever at all the
+    # fans stay on the lazy stock curve, which is a real difference between the two machines.
+    warn "no thermal-mode control: neither $PLATFORM_PROFILE nor smbios-thermal-ctl. The stock fan curve leaves both fans at 0 RPM until ~97 C on Dell hardware; record that this run had none."
   fi
 
   local govs
@@ -157,8 +193,7 @@ report_state() {
 
 apply_start() {
   [ -n "$PERF_PCT" ] || { echo "refusing to apply: no measured clock cap for '$MODEL'" >&2; exit 2; }
-  command -v smbios-thermal-ctl >/dev/null 2>&1 &&
-    sudo -n smbios-thermal-ctl --set-thermal-mode=performance >/dev/null 2>&1
+  set_thermal performance performance
   for c in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
     sudo -n sh -c "echo performance > $c" 2>/dev/null
   done
@@ -170,8 +205,7 @@ apply_start() {
 }
 
 apply_stop() {
-  command -v smbios-thermal-ctl >/dev/null 2>&1 &&
-    sudo -n smbios-thermal-ctl --set-thermal-mode=balanced >/dev/null 2>&1
+  set_thermal balanced balanced
   sudo -n sh -c 'echo 100 > /sys/devices/system/cpu/intel_pstate/max_perf_pct' 2>/dev/null
   sudo -n sh -c 'echo 17 > /sys/devices/system/cpu/intel_pstate/min_perf_pct' 2>/dev/null
   for c in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
