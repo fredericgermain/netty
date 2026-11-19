@@ -151,6 +151,84 @@ else
   echo "   live session will come up with no network and usb-setup.sh will stop there."
 fi
 
+
+# ---------------------------------------------------------------- the boot menu
+#
+# Bake the kernel arguments into the ISO's own grub.cfg so nothing has to be typed at boot.
+#
+# The alternative was telling the operator to press 'e' at the GRUB menu and append
+# "toram systemd.unit=multi-user.target" by hand, every boot, on both machines. That is one typo
+# away from a run that silently measured something else: a desktop session on the cores under test,
+# or a session reading its root filesystem off the USB key all through a measured cell.
+#
+# The ISO9660 filesystem is read-only, but the block device is not. ISO9660 stores file content
+# contiguously at a sector-aligned offset, so a same-size-or-smaller replacement can be written in
+# place -- xorriso reports the extent, dd writes it, and the directory record keeps the original
+# length, so a shorter file is padded rather than truncated. Grub ignores blank lines.
+#
+# This does NOT break Secure Boot: shim and grub are signed binaries and are untouched, and Ubuntu's
+# grub does not require a signed grub.cfg. It does invalidate the ISO's md5sum.txt, which only
+# matters to the "Check disc for defects" menu entry -- not present in the replacement.
+patch_grub() {
+  local src="$REPO/benchmark-report/scripts/boot/grub.cfg"
+  [ -f "$src" ] || { echo "   SKIPPED: $src missing"; return; }
+  if ! command -v xorriso >/dev/null 2>&1; then
+    echo "   SKIPPED: xorriso not installed, so the extent cannot be located."
+    echo "            apt install xorriso and re-run, or append at every boot by hand:"
+    echo "            toram systemd.unit=multi-user.target"
+    return
+  fi
+
+  local line lba size off
+  line=$(xorriso -indev "$ISO" -find /boot/grub/grub.cfg -exec report_lba -- 2>/dev/null | grep "File data lba")
+  lba=$(echo "$line" | awk -F, '{gsub(/ /,"",$2); print $2}')
+  size=$(echo "$line" | awk -F, '{gsub(/ /,"",$4); print $4}')
+  case "${lba:-x}" in ''|*[!0-9]*) echo "   SKIPPED: could not parse the grub.cfg extent"; return ;; esac
+  case "${size:-x}" in ''|*[!0-9]*) echo "   SKIPPED: could not parse the grub.cfg size"; return ;; esac
+  off=$((lba * 2048))
+
+  # The ISO was written with dd, so ISO byte 0 is device byte 0. Prove it rather than assume it: if
+  # these differ the offset means nothing and writing there would corrupt the filesystem.
+  if [ "$(dd if="$ISO" bs=1 skip=$off count="$size" 2>/dev/null | md5sum)" != \
+       "$(dd if="$DEV" bs=1 skip=$off count="$size" 2>/dev/null | md5sum)" ]; then
+    echo "   SKIPPED: bytes at offset $off differ between the iso and $DEV; not writing there."
+    return
+  fi
+
+  local new_size
+  new_size=$(stat -c %s "$src")
+  if [ "$new_size" -gt "$size" ]; then
+    echo "   SKIPPED: replacement is $new_size bytes and will not fit in $size."
+    echo "            Shorten $src; a directory record cannot be grown in place."
+    return
+  fi
+
+  # Keep the original beside the results so the key records what was done to it.
+  dd if="$DEV" bs=1 skip=$off count="$size" of="$MNT/grub.cfg.orig" 2>/dev/null
+  chmod 644 "$MNT/grub.cfg.orig"
+
+  # Pad to the recorded length with newlines so no byte of the old config survives, then compare the
+  # read-back against that exact padded image.
+  local tmp want got
+  tmp=$(mktemp)
+  cp "$src" "$tmp"
+  while [ "$(stat -c %s "$tmp")" -lt "$size" ]; do printf '\n' >> "$tmp"; done
+  want=$(md5sum < "$tmp" | cut -d' ' -f1)
+  dd if="$tmp" of="$DEV" bs=1 seek=$off count="$size" conv=notrunc 2>/dev/null
+  sync
+  rm -f "$tmp"
+
+  got=$(dd if="$DEV" bs=1 skip=$off count="$size" 2>/dev/null | md5sum | cut -d' ' -f1)
+  if [ "$want" = "$got" ]; then
+    echo "   grub.cfg patched in place at offset $off; entry 0 carries the bench args"
+  else
+    echo "   WRITTEN BUT READ-BACK DIFFERS. Mount ${DEV}1 and check boot/grub/grub.cfg"
+  fi
+  cp "$src" "$MNT/grub.cfg.patched"
+}
+echo "== boot menu"
+patch_grub
+
 echo "== ssh key"
 if [ -n "$SSH_KEY" ] && [ -f "$SSH_KEY" ]; then
   install -m 644 "$SSH_KEY" "$MNT/authorized_keys"
@@ -235,14 +313,9 @@ cat <<EOF
 == done
    Key: $DEV, data partition $part labelled CIDATA
 
-   Boot it, appending to the kernel command line (press 'e' at the GRUB entry on the Ubuntu
-   live menu):
-
-       toram systemd.unit=multi-user.target
-
-   toram makes the session RAM-resident. multi-user.target keeps GNOME from starting at all: a
-   desktop session on the machine under test is resident memory, background services and wakeups
-   on cores that are fully committed, and it does nothing for a benchmark.
+   F12 at the Dell logo, pick the key, and leave it alone. The boot menu already defaults to
+   "Benchmark (toram, no desktop)" on a 5-second timeout -- nothing to select, nothing to append.
+   Leave Secure Boot ON; shim and grub are untouched and signed.
 
    Then type nothing. The CIDATA label makes this key a cloud-init NoCloud seed, so cloud-init
    mounts it, runs `go`, and logs to results/boot-<timestamp>.log on the key itself. `go` does the

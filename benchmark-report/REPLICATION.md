@@ -166,10 +166,11 @@ thing that can silently differ between two boots, and the whole value of one key
 that the image is byte-identical. Everything variable lives on `CIDATA`, where it can be
 inspected.
 
-Boot with **`toram systemd.unit=multi-user.target`** on the kernel command line. `toram` makes the
-session RAM-resident so no state accumulates between the two machines; `multi-user.target` stops
-GNOME ever starting, which matters more than it sounds on a 16 GB machine -- a desktop session is
-resident memory, background services and periodic wakeups on the cores under test, and none of it
+The kernel arguments are **already in the key's boot menu**: `usb-build.sh` patches the ISO's own
+`grub.cfg` so entry 0, the default, carries `toram systemd.unit=multi-user.target`. `toram` makes the
+session RAM-resident so the key is not being read from during a measured cell; `multi-user.target`
+stops GNOME ever starting, which matters more than it sounds on a 16 GB machine -- a desktop session
+is resident memory, background services and periodic wakeups on the cores under test, and none of it
 is doing anything for a benchmark. `CIDATA` is then the only thing that persists, which is
 deliberate: it holds the raw output, the docker graph and the jar.
 
@@ -181,17 +182,33 @@ already booted this exact 9380. None of it is optional on a machine that dual-bo
 - **Use the one-time boot menu: tap F12 at the Dell logo and pick the USB key.** Do **not** change
   the permanent boot order.
 - **Leave Secure Boot ON.** The key is a stock, signed Ubuntu image written with `dd`, and
-  `usb-build.sh` only appends a GPT partition -- shim and grub are untouched, so it boots with
-  Secure Boot enabled. Turning Secure Boot off, or reordering boot devices, is what can trigger a
-  **BitLocker recovery prompt on the next Windows boot**, and on a corporate machine you may not
+  `usb-build.sh` only appends a GPT partition and rewrites `grub.cfg` -- shim and grub are signed
+  binaries and are untouched, and Ubuntu's grub does not require a signed `grub.cfg`, so it boots
+  with Secure Boot enabled. Turning Secure Boot off, or reordering boot devices, is what can trigger
+  a **BitLocker recovery prompt on the next Windows boot**, and on a corporate machine you may not
   hold that key.
 - If F12 is password protected or external boot is blocked, **stop**. That is a policy control, not
   an obstacle to work around.
-- At the Ubuntu menu choose **"Try Ubuntu", not "Install Ubuntu"**, then press `e` on the entry to
-  append the kernel arguments above.
+- **Then wait.** The menu defaults to "Benchmark (toram, no desktop)" on a 5-second timeout. Nothing
+  to select, nothing to type, nothing to append. The plain "Try or Install Ubuntu" and "Ubuntu (safe
+  graphics)" entries are still there as an escape hatch.
 - **The internal disk is never mounted, never written, never touched.** Booted to
   `multi-user.target` nothing auto-mounts it, and every path this protocol writes to is either RAM
   or `CIDATA`. Check once per machine with `findmnt | grep nvme` returning nothing.
+
+### How grub.cfg can be patched at all
+
+The ISO9660 filesystem is read-only, but the block device is not, and ISO9660 stores file content
+contiguously at a sector-aligned offset. So `patch_grub` in `usb-build.sh` asks `xorriso` for the
+extent (`/boot/grub/grub.cfg` is at LBA 1871, 543 bytes, on this image), proves that the bytes there
+are identical in the ISO file and on the device -- which is what confirms `dd` placed ISO byte 0 at
+device byte 0 -- and writes a same-size-or-smaller replacement in place, padded with newlines that
+grub ignores. The directory record keeps the original length, so nothing is truncated. It refuses if
+the extent cannot be parsed, if the bytes differ, or if the replacement does not fit.
+
+The original is kept at `CIDATA/grub.cfg.orig` and the replacement at `CIDATA/grub.cfg.patched`, so
+the key records what was done to it. The only casualty is the ISO's `md5sum.txt`, which no longer
+matches -- it is read by the "Check disc for defects" entry, which the replacement does not include.
 
 ### The two machines are not memory-equivalent
 
