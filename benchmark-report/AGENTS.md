@@ -1,15 +1,16 @@
 # benchmark-report
 
 Measurement work on this fork: netty on Alpine/musl, TLS, io_uring against epoll, QUIC. Not upstream
-netty material. Read `FINDINGS.md` for conclusions, `TESTS.md` for the evidence index,
-`ENVIRONMENT.md` for how to run a benchmark that means something.
+netty material. Read `RUNBOOK.md` for how a sweep runs end to end, `FINDINGS.md` for conclusions,
+`TESTS.md` for the evidence index, `ENVIRONMENT.md` for why each methodology rule exists.
 
 ## Where things are
 
 | path | what | when to reach for it |
 |---|---|---|
 | `FINDINGS.md` | the conclusions, with confidence tags | before quoting any number |
-| `ENVIRONMENT.md` | how to run a benchmark that is not corrupted | before designing a run |
+| `RUNBOOK.md` | what happens when a sweep runs, in order: the four stages, the tuning and the measurements that chose it, the two latency modes, and what throws a cell away | read this before designing a run; `ENVIRONMENT.md` for why each rule exists |
+| `ENVIRONMENT.md` | why each methodology rule exists, with the failure that produced it | when a rule in the runbook needs justifying, or to design something new |
 | `TESTS.md` | one row per test, pointing at `tests/` and the raw data | to find what backs a claim |
 | `REPLICATION.md` | the two-machine protocol and its pass/fail criteria | before any run on the second machine |
 | `quic/lib.sh` | the shared harness: port scan, quiet gates, container lifecycle, per-cell frequency, throttle, wi-fi and usb-write deltas | sourced by every sweep; extend here rather than reimplementing |
